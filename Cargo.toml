@@ -1,0 +1,29 @@
+[package]
+name = "twitcord-rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies.poise]
+version = "0.5.5"
+
+[dependencies.tokio]
+version = "1.28.2"
+features = ["rt-multi-thread"]
+
+[dependencies.env_logger]
+version = "0.10.0"
+
+[dependencies.hmac]
+version = "0.12.0"
+
+[dependencies.sha1]
+version = "0.10.5"
+
+[dependencies.hyper]
+version = "0.14.26"
+features = ["client", "http1", "runtime", "tcp"]
+
+[dependencies.hyper-rustls]
+version = "0.24.0"
