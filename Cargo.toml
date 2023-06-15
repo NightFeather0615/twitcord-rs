@@ -15,11 +15,8 @@ features = ["rt-multi-thread"]
 [dependencies.env_logger]
 version = "0.10.0"
 
-[dependencies.hmac]
-version = "0.12.0"
-
-[dependencies.sha1]
-version = "0.10.5"
+[dependencies.rust-crypto]
+version = "0.2.36"
 
 [dependencies.hyper]
 version = "0.14.26"
@@ -27,3 +24,12 @@ features = ["client", "http1", "runtime", "tcp"]
 
 [dependencies.hyper-rustls]
 version = "0.24.0"
+
+[dependencies.urlencoding]
+version = "2.1.2"
+
+[dependencies.base64]
+version = "0.21.2"
+
+[dependencies.rand]
+version = "0.8.5"

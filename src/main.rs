@@ -16,9 +16,9 @@ pub struct Data {
 
 #[tokio::main]
 async fn main() {
-    let auth = OAuthHandler::new(
-        "***".to_string(),
-        "***".to_string()
+    let mut auth: OAuthHandler<'_> = OAuthHandler::new(
+        "***",
+        "***"
     );
     auth.get_authorization_url();
 }
