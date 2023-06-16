@@ -3,7 +3,8 @@ mod oauth;
 
 use oauth::OAuthHandler;
 use poise::serenity_prelude as serenity;
-use std::{collections::HashMap, env::var, sync::Mutex, time::Duration};
+use dotenv::dotenv;
+use std::{collections::HashMap, sync::Mutex, time::Duration};
 
 // Types used by all command functions
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -16,6 +17,7 @@ pub struct Data {
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
     let mut auth: OAuthHandler<'_> = OAuthHandler::new(
         "***",
         "***"
