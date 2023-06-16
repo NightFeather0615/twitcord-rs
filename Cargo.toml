@@ -16,7 +16,7 @@ features = ["rt-multi-thread"]
 version = "0.10.0"
 
 [dependencies.log]
-version = "0.4.19"
+version = "0.4.18"
 
 [dependencies.sha1]
 version = "0.10.5"
@@ -49,3 +49,6 @@ version = "1.0.26"
 
 [dependencies.itertools]
 version = "0.10.5"
+
+[dependencies.regex]
+version = "1.8.3"

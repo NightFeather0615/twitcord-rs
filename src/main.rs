@@ -4,7 +4,7 @@ mod oauth;
 use oauth::TwitterClient;
 use poise::serenity_prelude as serenity;
 use dotenv::dotenv;
-use std::{collections::HashMap, sync::Mutex, time::Duration, env, io};
+use std::{collections::HashMap, sync::Mutex, time::Duration, env, io, rc::Rc};
 
 // Types used by all command functions
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -19,9 +19,10 @@ pub struct Data {
 async fn main() {
     env_logger::builder().filter_level(log::LevelFilter::Debug).try_init().unwrap();
     dotenv().ok();
+
     let mut auth: TwitterClient = TwitterClient::new(
-        env::var("TWITTER_CONSUMER_KEY").unwrap(),
-        env::var("TWITTER_CONSUMER_SECRET").unwrap(),
+        env::var("TWITTER_CONSUMER_KEY").unwrap().into(),
+        env::var("TWITTER_CONSUMER_SECRET").unwrap().into(),
         None,
         None
     );
@@ -32,8 +33,12 @@ async fn main() {
         .read_line(&mut input_text)
         .expect("failed to read from stdin");
 
-    auth.get_access_token(input_text.trim().to_string()).await;
-    auth.like("1669464988161908738".to_string()).await;
+    auth.get_access_token(input_text.trim()).await;
+
+    auth.retweet("1669464988161908738").await;
+
+    let author_id: String = auth.get_author_id("1669464988161908738").await;
+    auth.follow(&author_id).await;
 }
 
 // async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {

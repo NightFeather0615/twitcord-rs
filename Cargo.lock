@@ -1493,6 +1493,7 @@ dependencies = [
  "log",
  "poise",
  "rand",
+ "regex",
  "sha1",
  "tokio",
  "urlencoding",
