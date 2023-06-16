@@ -24,9 +24,12 @@ use hyper::{
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use rand::{thread_rng, rngs::ThreadRng, Rng};
 
+
 type HmacSha1 = Hmac<Sha1>;
 
+
 static LOOKUP_USER_ID_REGEX: OnceLock<Regex> = OnceLock::new();
+
 
 #[derive(Debug)]
 pub struct TwitterClient {
@@ -221,6 +224,7 @@ impl TwitterClient {
     self.oauth.request(&url, params).await;
   }
 }
+
 
 #[derive(Debug)]
 struct OAuthSession {
