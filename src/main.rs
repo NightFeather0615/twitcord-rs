@@ -1,10 +1,10 @@
 mod commands;
 mod oauth;
 
-use oauth::OAuthHandler;
+use oauth::TwitterClient;
 use poise::serenity_prelude as serenity;
 use dotenv::dotenv;
-use std::{collections::HashMap, sync::Mutex, time::Duration};
+use std::{collections::HashMap, sync::Mutex, time::Duration, env, io};
 
 // Types used by all command functions
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -17,12 +17,23 @@ pub struct Data {
 
 #[tokio::main]
 async fn main() {
+    env_logger::builder().filter_level(log::LevelFilter::Debug).try_init().unwrap();
     dotenv().ok();
-    let mut auth: OAuthHandler<'_> = OAuthHandler::new(
-        "***",
-        "***"
+    let mut auth: TwitterClient = TwitterClient::new(
+        env::var("TWITTER_CONSUMER_KEY").unwrap(),
+        env::var("TWITTER_CONSUMER_SECRET").unwrap(),
+        None,
+        None
     );
-    auth.get_authorization_url();
+    println!("{:?}", auth.get_authorization_url().await);
+
+    let mut input_text = String::new();
+    io::stdin()
+        .read_line(&mut input_text)
+        .expect("failed to read from stdin");
+
+    auth.get_access_token(input_text.trim().to_string()).await;
+    auth.like("1669464988161908738".to_string()).await;
 }
 
 // async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
