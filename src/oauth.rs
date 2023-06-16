@@ -407,8 +407,7 @@ impl OAuthSession {
 
     let mut token: HashMap<String, String> = HashMap::new();
     raw_token.split("&").for_each(|pair: &str| {
-      let (k, v) = pair
-        .split("=")
+      let (k, v) = pair.split("=")
         .collect_tuple()
         .expect("Parse token failed.");
       token.insert(k.to_string(), v.to_string());
