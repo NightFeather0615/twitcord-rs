@@ -1,4 +1,9 @@
-use std::{collections::{HashMap, BTreeMap}, time::{SystemTime, UNIX_EPOCH}, io::Read, sync::OnceLock};
+use std::{
+  collections::{HashMap, BTreeMap},
+  time::{SystemTime, UNIX_EPOCH},
+  io::Read,
+  sync::OnceLock
+};
 
 use base64::{engine::general_purpose, Engine};
 use flate2::read::GzDecoder;
@@ -7,8 +12,16 @@ use itertools::Itertools;
 use log::debug;
 use regex::Regex;
 use sha1::Sha1;
-use hyper::{Client, Body, client::HttpConnector, Request, body, Response, http::request};
-use hyper_rustls::HttpsConnector;
+use hyper::{
+  Client,
+  Body,
+  client::HttpConnector,
+  Request,
+  body,
+  Response,
+  http::request
+};
+use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use rand::{thread_rng, rngs::ThreadRng, Rng};
 
 type HmacSha1 = Hmac<Sha1>;
@@ -65,6 +78,7 @@ impl TwitterClient {
       verifier,
       self.request_token.as_ref().expect("Get request token failed.")
     ).await;
+
     (
       self.access_token.as_ref().expect("Get access token failed."),
       self.access_token_secret.as_ref().expect("Get access token secret failed.")
@@ -72,7 +86,10 @@ impl TwitterClient {
   }
 
   pub async fn like(self: &mut Self, tweet_id: &str) {
-    let url: String = format!("https://api.twitter.com/1.1/favorites/create.json?id={}", tweet_id);
+    let url: String = format!(
+      "https://api.twitter.com/1.1/favorites/create.json?id={tweet_id}",
+      tweet_id = tweet_id
+    );
 
     let mut params: BTreeMap<&str, String> = BTreeMap::new();
     params.insert(
@@ -88,7 +105,10 @@ impl TwitterClient {
   }
 
   pub async fn unlike(self: &mut Self, tweet_id: &str) {
-    let url: String = format!("https://api.twitter.com/1.1/favorites/destroy.json?id={}", tweet_id);
+    let url: String = format!(
+      "https://api.twitter.com/1.1/favorites/destroy.json?id={tweet_id}",
+      tweet_id = tweet_id
+    );
 
     let mut params: BTreeMap<&str, String> = BTreeMap::new();
     params.insert(
@@ -104,7 +124,10 @@ impl TwitterClient {
   }
 
   pub async fn retweet(self: &mut Self, tweet_id: &str) {
-    let url: String = format!("https://api.twitter.com/1.1/statuses/retweet/{}.json", tweet_id);
+    let url: String = format!(
+      "https://api.twitter.com/1.1/statuses/retweet/{tweet_id}.json",
+      tweet_id = tweet_id
+    );
 
     let mut params: BTreeMap<&str, String> = BTreeMap::new();
     params.insert(
@@ -116,7 +139,10 @@ impl TwitterClient {
   }
 
   pub async fn unretweet(self: &mut Self, tweet_id: &str) {
-    let url: String = format!("https://api.twitter.com/1.1/statuses/unretweet/{}.json", tweet_id);
+    let url: String = format!(
+      "https://api.twitter.com/1.1/statuses/unretweet/{tweet_id}.json",
+      tweet_id = tweet_id
+    );
 
     let mut params: BTreeMap<&str, String> = BTreeMap::new();
     params.insert(
@@ -128,7 +154,10 @@ impl TwitterClient {
   }
 
   pub async fn get_author_id(self: &mut Self, tweet_id: &str) -> String {
-    let url: String = format!("https://api.twitter.com/1.1/statuses/lookup.json?id={}&trim_user=true", tweet_id);
+    let url: String = format!(
+      "https://api.twitter.com/1.1/statuses/lookup.json?id={tweet_id}&trim_user=true",
+      tweet_id = tweet_id
+    );
 
     let mut params: BTreeMap<&str, String> = BTreeMap::new();
     params.insert(
@@ -145,14 +174,20 @@ impl TwitterClient {
     );
 
     LOOKUP_USER_ID_REGEX
-      .get_or_init(|| Regex::new(r#".*"user":\{"id":(?P<id>[0-9]{19}),"id_str":"[0-9]{19}"\}.*"#)
-      .expect("Regex init failed."))
+      .get_or_init(
+        || Regex::new(
+          r#".*"user":\{"id":(?P<id>[0-9]{19}),"id_str":"[0-9]{19}"\}.*"#
+        ).expect("Regex init failed.")
+      )
       .replace(&self.oauth.request(&url, params).await, "$id")
       .to_string()
   }
 
   pub async fn follow(self: &mut Self, user_id: &str) {
-    let url: String = format!("https://api.twitter.com/1.1/friendships/create.json?user_id={}", user_id);
+    let url: String = format!(
+      "https://api.twitter.com/1.1/friendships/create.json?user_id={user_id}",
+      user_id = user_id
+    );
 
     let mut params: BTreeMap<&str, String> = BTreeMap::new();
     params.insert(
@@ -168,7 +203,10 @@ impl TwitterClient {
   }
 
   pub async fn unfollow(self: &mut Self, user_id: &str) {
-    let url: String = format!("https://api.twitter.com/1.1/friendships/destroy.json?user_id={}", user_id);
+    let url: String = format!(
+      "https://api.twitter.com/1.1/friendships/destroy.json?user_id={user_id}",
+      user_id = user_id
+    );
 
     let mut params: BTreeMap<&str, String> = BTreeMap::new();
     params.insert(
@@ -202,7 +240,7 @@ impl OAuthSession {
     resource_owner_key: Option<String>,
     resource_owner_secret: Option<String>
   ) -> OAuthSession {
-    let https_connector: HttpsConnector<HttpConnector> = hyper_rustls::HttpsConnectorBuilder::new()
+    let https_connector: HttpsConnector<HttpConnector> = HttpsConnectorBuilder::new()
       .with_native_roots()
       .https_only()
       .enable_http1()
@@ -220,7 +258,7 @@ impl OAuthSession {
           urlencoding::encode(&client_secret),
           urlencoding::encode(&resource_owner_secret.unwrap_or("".to_string()))
         ).as_bytes()
-      ).unwrap(),
+      ).expect("Create hash failed."),
       rng: thread_rng()
     }
   }
@@ -232,14 +270,21 @@ impl OAuthSession {
         urlencoding::encode(&self.client_secret),
         urlencoding::encode(&self.resource_owner_secret.clone().unwrap_or("".to_string()))
       ).as_bytes()
-    ).unwrap();
+    ).expect("Create hash failed.");
   }
 
-  pub(self) fn apply_signture(self: &mut Self, url: &str, params: &mut BTreeMap<&str, String>) {
+  pub(self) fn apply_signture(
+    self: &mut Self,
+    url: &str,
+    params: &mut BTreeMap<&str, String>
+  ) {
     debug!("Collected params: {:?}", params);
 
     let normalized_params: String = params.iter()
-      .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
+      .map(
+        |(k, v)|
+          format!("{}={}", urlencoding::encode(k), urlencoding::encode(v))
+      )
       .collect::<Vec<String>>()
       .join("&");
 
@@ -255,7 +300,9 @@ impl OAuthSession {
     debug!("Signature base string: {:?}", signature_base);
 
     self.hmac_sha1.update(signature_base.as_bytes());
-    let signature: String = general_purpose::STANDARD.encode(self.hmac_sha1.finalize_reset().into_bytes());
+    let signature: String = general_purpose::STANDARD.encode(
+      self.hmac_sha1.finalize_reset().into_bytes()
+    );
 
     debug!("Signature: {:?}", signature);
 
@@ -276,7 +323,11 @@ impl OAuthSession {
     );
     params.insert(
       "oauth_timestamp",
-      SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs().to_string()
+      SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Epoch fail!")
+        .as_secs()
+        .to_string()
     );
     params.insert(
       "oauth_signature_method",
@@ -288,7 +339,11 @@ impl OAuthSession {
     );
   }
 
-  pub(self) fn build_request(self: &Self, url: &str, params: Option<BTreeMap<&str, String>>) -> Request<Body> {
+  pub(self) fn build_request(
+    self: &Self,
+    url: &str,
+    params: Option<BTreeMap<&str, String>>
+  ) -> Request<Body> {
     let mut builder: request::Builder = Request::post(url)
       .header("User-Agent", "Rust@2021/hyper@0.14.26/hyper-rustls@0.24.0")
       .header("Accept-Encoding", "gzip")
@@ -303,14 +358,19 @@ impl OAuthSession {
         format!(
           "OAuth {}",
           params.into_iter()
-            .map(|(k, v)| format!(r#"{}="{}""#, urlencoding::encode(k), urlencoding::encode(&v)))
+            .map(
+              |(k, v)| 
+                format!(r#"{}="{}""#, urlencoding::encode(k), urlencoding::encode(&v))
+            )
             .collect::<Vec<String>>()
             .join(", ")
         )
       );
     }
 
-    let request: Request<Body> = builder.body(Body::empty()).unwrap();
+    let request: Request<Body> = builder
+      .body(Body::empty())
+      .expect("Build request failed.");
 
     debug!("Updated headers: {:?}", request.headers());
 
@@ -320,15 +380,20 @@ impl OAuthSession {
   async fn request(self: &mut Self, url: &str, mut params: BTreeMap<&str, String>) -> String {
     self.apply_oauth_params(&mut params);
 
-    self.apply_signture(url.split("?").next().unwrap(), &mut params);
+    self.apply_signture(
+      url.split("?").next().expect("Split URL failed."),
+      &mut params
+    );
 
     let response: Response<Body> = self.http_client.request(
       self.build_request(url, Some(params))
-    ).await.unwrap();
+    ).await.expect("HTTP request failed.");
 
     let mut body: String = String::new();
 
-    GzDecoder::new(&*body::to_bytes(response).await.unwrap()).read_to_string(&mut body).unwrap();
+    GzDecoder::new(
+      &*body::to_bytes(response).await.expect("Concatenate buffer failed.")
+    ).read_to_string(&mut body).expect("Gzip decode failed.");
 
     body
   }
@@ -338,7 +403,10 @@ impl OAuthSession {
 
     let mut token: HashMap<String, String> = HashMap::new();
     raw_token.split("&").for_each(|pair: &str| {
-      let (k, v) = pair.split("=").collect_tuple().unwrap();
+      let (k, v) = pair
+        .split("=")
+        .collect_tuple()
+        .expect("Parse token failed.");
       token.insert(k.to_string(), v.to_string());
     });
 
@@ -347,12 +415,20 @@ impl OAuthSession {
     token
   }
 
-  async fn fetch_token(self: &mut Self, url: &str, params: BTreeMap<&str, String>) -> HashMap<String, String> {
+  async fn fetch_token(
+    self: &mut Self,
+    url: &str,
+    params: BTreeMap<&str, String>
+  ) -> HashMap<String, String> {
     let raw_token: String = self.request(url, params).await;
     self.decode_token(&raw_token)
   }
 
-  async fn get_access_token(self: &mut Self, verifier: &str, request_token: &str) -> (Option<String> ,Option<String>) {
+  async fn get_access_token(
+    self: &mut Self,
+    verifier: &str,
+    request_token: &str
+  ) -> (Option<String> ,Option<String>) {
     let url: String = format!(
       "https://api.twitter.com/oauth/access_token?oauth_verifier={oauth_verifier}&oauth_token={oauth_token}",
       oauth_verifier = verifier,
