@@ -2,7 +2,7 @@ mod oauth;
 
 use oauth::TwitterClient;
 use dotenv::dotenv;
-use std::{env, io};
+use std::{env, io, sync::Arc};
 
 #[tokio::main]
 async fn main() {
@@ -26,6 +26,6 @@ async fn main() {
 
     auth.retweet("1669464988161908738").await;
 
-    let author_id: String = auth.get_author_id("1669464988161908738").await;
+    let author_id: Arc<str> = auth.get_author_id("1669464988161908738").await;
     auth.follow(&author_id).await;
 }

@@ -1,8 +1,8 @@
 use std::{
   collections::{HashMap, BTreeMap},
   time::{SystemTime, UNIX_EPOCH},
-  io::Read,
-  sync::OnceLock
+  io::{Read, IoSliceMut},
+  sync::{OnceLock, Arc}
 };
 
 use base64::{engine::general_purpose, Engine};
@@ -19,7 +19,7 @@ use hyper::{
   Request,
   body,
   Response,
-  http::request
+  http::request, header
 };
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use rand::{thread_rng, rngs::ThreadRng, Rng};
@@ -33,19 +33,19 @@ static LOOKUP_USER_ID_REGEX: OnceLock<Regex> = OnceLock::new();
 
 #[derive(Debug)]
 pub struct TwitterClient {
-  request_token: Option<String>,
-  request_token_secret: Option<String>,
-  access_token: Option<String>,
-  access_token_secret: Option<String>,
+  request_token: Option<Arc<str>>,
+  request_token_secret: Option<Arc<str>>,
+  access_token: Option<Arc<str>>,
+  access_token_secret: Option<Arc<str>>,
   oauth: OAuthSession
 }
 
 impl TwitterClient {
   pub fn new(
-    consumer_key: String,
-    consumer_secret: String,
-    access_token: Option<String>,
-    access_token_secret: Option<String>
+    consumer_key: Arc<str>,
+    consumer_secret: Arc<str>,
+    access_token: Option<Arc<str>>,
+    access_token_secret: Option<Arc<str>>
   ) -> TwitterClient {
     TwitterClient {
       request_token: None,
@@ -61,8 +61,8 @@ impl TwitterClient {
     }
   }
 
-  pub async fn get_authorization_url(self: &mut Self) -> String {
-    let token: HashMap<String, String> = self.oauth.fetch_token(
+  pub async fn get_authorization_url(self: &mut Self) -> Arc<str> {
+    let token: HashMap<Arc<str>, Arc<str>> = self.oauth.fetch_token(
       "https://api.twitter.com/oauth/request_token",
       BTreeMap::new()
     ).await;
@@ -73,7 +73,7 @@ impl TwitterClient {
     format!(
       "https://api.twitter.com/oauth/authorize?oauth_token={oauth_token}",
       oauth_token = self.request_token.clone().expect("Get request token failed.")
-    )
+    ).into()
   }
 
   pub async fn get_access_token(self: &mut Self, verifier: &str) -> (&str, &str) {
@@ -89,50 +89,50 @@ impl TwitterClient {
   }
 
   pub async fn like(self: &mut Self, tweet_id: &str) {
-    let url: String = format!(
+    let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/favorites/create.json?id={tweet_id}",
       tweet_id = tweet_id
-    );
+    ).into();
 
-    let mut params: BTreeMap<&str, String> = BTreeMap::new();
+    let mut params: BTreeMap<&str, Arc<str>> = BTreeMap::new();
     params.insert(
       "oauth_token",
       self.access_token.clone().expect("Get access token failed.")
     );
     params.insert(
       "id",
-      tweet_id.to_string()
+      tweet_id.into()
     );
     
     self.oauth.request(&url, params).await;
   }
 
   pub async fn unlike(self: &mut Self, tweet_id: &str) {
-    let url: String = format!(
+    let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/favorites/destroy.json?id={tweet_id}",
       tweet_id = tweet_id
-    );
+    ).into();
 
-    let mut params: BTreeMap<&str, String> = BTreeMap::new();
+    let mut params: BTreeMap<&str, Arc<str>> = BTreeMap::new();
     params.insert(
       "oauth_token",
       self.access_token.clone().expect("Get access token failed.")
     );
     params.insert(
       "id",
-      tweet_id.to_string()
+      tweet_id.into()
     );
     
     self.oauth.request(&url, params).await;
   }
 
   pub async fn retweet(self: &mut Self, tweet_id: &str) {
-    let url: String = format!(
+    let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/statuses/retweet/{tweet_id}.json",
       tweet_id = tweet_id
-    );
+    ).into();
 
-    let mut params: BTreeMap<&str, String> = BTreeMap::new();
+    let mut params: BTreeMap<&str, Arc<str>> = BTreeMap::new();
     params.insert(
       "oauth_token",
       self.access_token.clone().expect("Get access token failed.")
@@ -142,12 +142,12 @@ impl TwitterClient {
   }
 
   pub async fn unretweet(self: &mut Self, tweet_id: &str) {
-    let url: String = format!(
+    let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/statuses/unretweet/{tweet_id}.json",
       tweet_id = tweet_id
-    );
+    ).into();
 
-    let mut params: BTreeMap<&str, String> = BTreeMap::new();
+    let mut params: BTreeMap<&str, Arc<str>> = BTreeMap::new();
     params.insert(
       "oauth_token",
       self.access_token.clone().expect("Get access token failed.")
@@ -156,24 +156,24 @@ impl TwitterClient {
     self.oauth.request(&url, params).await;
   }
 
-  pub async fn get_author_id(self: &mut Self, tweet_id: &str) -> String {
-    let url: String = format!(
+  pub async fn get_author_id(self: &mut Self, tweet_id: &str) -> Arc<str> {
+    let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/statuses/lookup.json?id={tweet_id}&trim_user=true",
       tweet_id = tweet_id
-    );
+    ).into();
 
-    let mut params: BTreeMap<&str, String> = BTreeMap::new();
+    let mut params: BTreeMap<&str, Arc<str>> = BTreeMap::new();
     params.insert(
       "oauth_token",
       self.access_token.clone().expect("Get access token failed.")
     );
     params.insert(
       "id",
-      tweet_id.to_string()
+      tweet_id.into()
     );
     params.insert(
       "trim_user",
-      "true".to_string()
+      "true".into()
     );
 
     LOOKUP_USER_ID_REGEX
@@ -183,42 +183,42 @@ impl TwitterClient {
         ).expect("Regex init failed.")
       )
       .replace(&self.oauth.request(&url, params).await, "$id")
-      .to_string()
+      .into()
   }
 
   pub async fn follow(self: &mut Self, user_id: &str) {
-    let url: String = format!(
+    let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/friendships/create.json?user_id={user_id}",
       user_id = user_id
-    );
+    ).into();
 
-    let mut params: BTreeMap<&str, String> = BTreeMap::new();
+    let mut params: BTreeMap<&str, Arc<str>> = BTreeMap::new();
     params.insert(
       "oauth_token",
       self.access_token.clone().expect("Get access token failed.")
     );
     params.insert(
       "user_id",
-      user_id.to_string()
+      user_id.into()
     );
     
     self.oauth.request(&url, params).await;
   }
 
   pub async fn unfollow(self: &mut Self, user_id: &str) {
-    let url: String = format!(
+    let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/friendships/destroy.json?user_id={user_id}",
       user_id = user_id
-    );
+    ).into();
 
-    let mut params: BTreeMap<&str, String> = BTreeMap::new();
+    let mut params: BTreeMap<&str, Arc<str>> = BTreeMap::new();
     params.insert(
       "oauth_token",
       self.access_token.clone().expect("Get access token failed.")
     );
     params.insert(
       "user_id",
-      user_id.to_string()
+      user_id.into()
     );
     
     self.oauth.request(&url, params).await;
@@ -228,10 +228,10 @@ impl TwitterClient {
 
 #[derive(Debug)]
 struct OAuthSession {
-  client_key: String,
-  client_secret: String,
-  resource_owner_key: Option<String>,
-  resource_owner_secret: Option<String>,
+  client_key: Arc<str>,
+  client_secret: Arc<str>,
+  resource_owner_key: Option<Arc<str>>,
+  resource_owner_secret: Option<Arc<str>>,
   http_client: Client<HttpsConnector<HttpConnector>, Body>,
   hmac_sha1: HmacSha1,
   rng: ThreadRng
@@ -239,10 +239,10 @@ struct OAuthSession {
 
 impl OAuthSession {
   fn new(
-    client_key: String,
-    client_secret: String,
-    resource_owner_key: Option<String>,
-    resource_owner_secret: Option<String>
+    client_key: Arc<str>,
+    client_secret: Arc<str>,
+    resource_owner_key: Option<Arc<str>>,
+    resource_owner_secret: Option<Arc<str>>
   ) -> OAuthSession {
     let https_connector: HttpsConnector<HttpConnector> = HttpsConnectorBuilder::new()
       .with_native_roots()
@@ -260,7 +260,7 @@ impl OAuthSession {
         format!(
           "{}&{}",
           urlencoding::encode(&client_secret),
-          urlencoding::encode(&resource_owner_secret.unwrap_or("".to_string()))
+          urlencoding::encode(&resource_owner_secret.unwrap_or("".into()))
         ).as_bytes()
       ).expect("Create hash failed."),
       rng: thread_rng()
@@ -272,7 +272,7 @@ impl OAuthSession {
       format!(
         "{}&{}",
         urlencoding::encode(&self.client_secret),
-        urlencoding::encode(&self.resource_owner_secret.clone().unwrap_or("".to_string()))
+        urlencoding::encode(&self.resource_owner_secret.clone().unwrap_or("".into()))
       ).as_bytes()
     ).expect("Create hash failed.");
   }
@@ -280,33 +280,34 @@ impl OAuthSession {
   pub(self) fn apply_signture(
     self: &mut Self,
     url: &str,
-    params: &mut BTreeMap<&str, String>
+    params: &mut BTreeMap<&str, Arc<str>>
   ) {
     debug!("Collected params: {:?}", params);
 
-    let normalized_params: String = params.iter()
+    let normalized_params: Arc<str> = params.iter()
       .map(
         |(k, v)|
-          format!("{}={}", urlencoding::encode(k), urlencoding::encode(v))
+          format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)).into()
       )
-      .collect::<Vec<String>>()
-      .join("&");
+      .collect::<Vec<Arc<str>>>()
+      .join("&")
+      .into();
 
     debug!("Normalized params: {:?}", normalized_params);
 
-    let signature_base: String = format!(
+    let signature_base: Arc<str> = format!(
       "{method}&{url}&{params}",
       method = urlencoding::encode("POST"),
       url = urlencoding::encode(url),
       params = urlencoding::encode(&normalized_params)
-    );
+    ).into();
 
-    debug!("Signature base string: {:?}", signature_base);
+    debug!("Signature base: {:?}", signature_base);
 
     self.hmac_sha1.update(signature_base.as_bytes());
-    let signature: String = general_purpose::STANDARD.encode(
+    let signature: Arc<str> = general_purpose::STANDARD.encode(
       self.hmac_sha1.finalize_reset().into_bytes()
-    );
+    ).into();
 
     debug!("Signature: {:?}", signature);
 
@@ -316,14 +317,16 @@ impl OAuthSession {
     );
   }
 
-  pub(self) fn apply_oauth_params(self: &mut Self, params: &mut BTreeMap<&str, String>) {
+  pub(self) fn apply_oauth_params(self: &mut Self, params: &mut BTreeMap<&str, Arc<str>>) {
     params.insert(
       "oauth_consumer_key",
-      self.client_key.to_string()
+      self.client_key.clone()
     );
     params.insert(
       "oauth_nonce",
-      ((u64::MAX as f32 * self.rng.gen::<f32>()) as u64).to_string()
+      (
+        (u64::MAX as f32 * self.rng.gen::<f32>()) as u64
+      ).to_string().into()
     );
     params.insert(
       "oauth_timestamp",
@@ -332,21 +335,22 @@ impl OAuthSession {
         .expect("Epoch fail!")
         .as_secs()
         .to_string()
+        .into()
     );
     params.insert(
       "oauth_signature_method",
-      "HMAC-SHA1".to_string()
+      "HMAC-SHA1".into()
     );
     params.insert(
       "oauth_version",
-      "1.0".to_string()
+      "1.0".into()
     );
   }
 
   pub(self) fn build_request(
     self: &Self,
     url: &str,
-    params: Option<BTreeMap<&str, String>>
+    params: Option<BTreeMap<&str, Arc<str>>>
   ) -> Request<Body> {
     let mut builder: request::Builder = Request::post(url)
       .header("User-Agent", "Rust@2021/hyper@0.14.26/hyper-rustls@0.24.0")
@@ -364,9 +368,9 @@ impl OAuthSession {
           params.into_iter()
             .map(
               |(k, v)| 
-                format!(r#"{}="{}""#, urlencoding::encode(k), urlencoding::encode(&v))
+                format!(r#"{}="{}""#, urlencoding::encode(k), urlencoding::encode(&v)).into()
             )
-            .collect::<Vec<String>>()
+            .collect::<Vec<Arc<str>>>()
             .join(", ")
         )
       );
@@ -381,7 +385,11 @@ impl OAuthSession {
     request
   }
 
-  async fn request(self: &mut Self, url: &str, mut params: BTreeMap<&str, String>) -> String {
+  async fn request(
+    self: &mut Self,
+    url: &str,
+    mut params: BTreeMap<&str, Arc<str>>
+  ) -> Arc<str> {
     self.apply_oauth_params(&mut params);
 
     self.apply_signture(
@@ -393,24 +401,34 @@ impl OAuthSession {
       self.build_request(url, Some(params))
     ).await.expect("HTTP request failed.");
 
-    let mut body: String = String::new();
+    let content_length: usize = response.headers()
+      .get(header::CONTENT_LENGTH)
+      .expect("Get Content-Length failed.")
+      .to_str()
+      .expect("Parse str failed.")
+      .parse()
+      .expect("Parse length to usize failed");
+
+    let mut buffer: Vec<u8> = Vec::with_capacity(content_length);
 
     GzDecoder::new(
       &*body::to_bytes(response).await.expect("Concatenate buffer failed.")
-    ).read_to_string(&mut body).expect("Gzip decode failed.");
+    ).read_vectored(
+      &mut [IoSliceMut::new(&mut buffer)]
+    ).expect("Gzip decode failed.");
 
-    body
+    Arc::from(std::str::from_utf8(&buffer).expect("Decode utf-8 failed."))
   }
 
-  pub(self) fn decode_token(self: &Self, raw_token: &str) -> HashMap<String, String> {
+  pub(self) fn decode_token(self: &Self, raw_token: &str) -> HashMap<Arc<str>, Arc<str>> {
     debug!("Decoding token from response: {:?}", raw_token);
 
-    let mut token: HashMap<String, String> = HashMap::new();
+    let mut token: HashMap<Arc<str>, Arc<str>> = HashMap::new();
     raw_token.split("&").for_each(|pair: &str| {
       let (k, v) = pair.split("=")
         .collect_tuple()
         .expect("Parse token failed.");
-      token.insert(k.to_string(), v.to_string());
+      token.insert(k.into(), v.into());
     });
 
     debug!("Obtained token: {:?}", token);
@@ -421,9 +439,9 @@ impl OAuthSession {
   async fn fetch_token(
     self: &mut Self,
     url: &str,
-    params: BTreeMap<&str, String>
-  ) -> HashMap<String, String> {
-    let raw_token: String = self.request(url, params).await;
+    params: BTreeMap<&str, Arc<str>>
+  ) -> HashMap<Arc<str>, Arc<str>> {
+    let raw_token: Arc<str> = self.request(url, params).await;
     self.decode_token(&raw_token)
   }
 
@@ -431,14 +449,16 @@ impl OAuthSession {
     self: &mut Self,
     verifier: &str,
     request_token: &str
-  ) -> (Option<String> ,Option<String>) {
-    let url: String = format!(
+  ) -> (Option<Arc<str>> ,Option<Arc<str>>) {
+    let url: Arc<str> = format!(
       "https://api.twitter.com/oauth/access_token?oauth_verifier={oauth_verifier}&oauth_token={oauth_token}",
       oauth_verifier = verifier,
       oauth_token = request_token
-    );
+    ).into();
 
-    let token: HashMap<String, String> = self.fetch_token(&url, BTreeMap::new()).await;
+    let token: HashMap<Arc<str>, Arc<str>> = self.fetch_token(
+      &url, BTreeMap::new()
+    ).await;
 
     self.resource_owner_key = token.get("oauth_token").cloned();
     self.resource_owner_secret = token.get("oauth_token_secret").cloned();
