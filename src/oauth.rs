@@ -21,11 +21,15 @@ use hyper::{
   Response,
   http::request, header
 };
-use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+use hyper_rustls::{
+  HttpsConnector as rustls_HttpsConnector,
+  HttpsConnectorBuilder
+};
 use rand::{thread_rng, rngs::ThreadRng, Rng};
 
 
 type HmacSha1 = Hmac<Sha1>;
+type HttpsConnector = rustls_HttpsConnector<HttpConnector>;
 
 
 static LOOKUP_USER_ID_REGEX: OnceLock<Regex> = OnceLock::new();
@@ -232,7 +236,7 @@ struct OAuthSession {
   client_secret: Arc<str>,
   resource_owner_key: Option<Arc<str>>,
   resource_owner_secret: Option<Arc<str>>,
-  http_client: Client<HttpsConnector<HttpConnector>, Body>,
+  http_client: Client<HttpsConnector, Body>,
   hmac_sha1: HmacSha1,
   rng: ThreadRng
 }
@@ -244,7 +248,7 @@ impl OAuthSession {
     resource_owner_key: Option<Arc<str>>,
     resource_owner_secret: Option<Arc<str>>
   ) -> OAuthSession {
-    let https_connector: HttpsConnector<HttpConnector> = HttpsConnectorBuilder::new()
+    let https_connector: HttpsConnector = HttpsConnectorBuilder::new()
       .with_native_roots()
       .https_only()
       .enable_http1()
@@ -258,9 +262,11 @@ impl OAuthSession {
       http_client: Client::builder().build(https_connector),
       hmac_sha1: HmacSha1::new_from_slice(
         format!(
-          "{}&{}",
-          urlencoding::encode(&client_secret),
-          urlencoding::encode(&resource_owner_secret.unwrap_or("".into()))
+          "{consumer_secret}&{token_secret}",
+          consumer_secret = urlencoding::encode(&client_secret),
+          token_secret = urlencoding::encode(
+            &resource_owner_secret.unwrap_or("".into())
+          )
         ).as_bytes()
       ).expect("Create hash failed."),
       rng: thread_rng()
@@ -270,9 +276,11 @@ impl OAuthSession {
   pub(self) fn update_hash_key(self: &mut Self) {
     self.hmac_sha1 = HmacSha1::new_from_slice(
       format!(
-        "{}&{}",
-        urlencoding::encode(&self.client_secret),
-        urlencoding::encode(&self.resource_owner_secret.clone().unwrap_or("".into()))
+        "{consumer_secret}&{token_secret}",
+        consumer_secret = urlencoding::encode(&self.client_secret),
+        token_secret = urlencoding::encode(
+          &self.resource_owner_secret.clone().unwrap_or("".into())
+        )
       ).as_bytes()
     ).expect("Create hash failed.");
   }
@@ -287,7 +295,11 @@ impl OAuthSession {
     let normalized_params: Arc<str> = params.iter()
       .map(
         |(k, v)|
-          format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)).into()
+          format!(
+            "{key}={value}",
+            key = urlencoding::encode(k),
+            value = urlencoding::encode(v)
+          ).into()
       )
       .collect::<Vec<Arc<str>>>()
       .join("&")
@@ -317,7 +329,10 @@ impl OAuthSession {
     );
   }
 
-  pub(self) fn apply_oauth_params(self: &mut Self, params: &mut BTreeMap<&str, Arc<str>>) {
+  pub(self) fn apply_oauth_params(
+    self: &mut Self,
+    params: &mut BTreeMap<&str, Arc<str>>
+  ) {
     params.insert(
       "oauth_consumer_key",
       self.client_key.clone()
@@ -353,22 +368,44 @@ impl OAuthSession {
     params: Option<BTreeMap<&str, Arc<str>>>
   ) -> Request<Body> {
     let mut builder: request::Builder = Request::post(url)
-      .header("User-Agent", "Rust@2021/hyper@0.14.26/hyper-rustls@0.24.0")
-      .header("Accept-Encoding", "gzip")
-      .header("Accept", "*/*")
-      .header("Connection", "keep-alive")
-      .header("Content-Type", "application/json")
-      .header("Content-Length", 0);
+      .header(
+        header::USER_AGENT,
+        "Rust@2021/hyper@0.14.26/hyper-rustls@0.24.0"
+      )
+      .header(
+        header::ACCEPT_ENCODING,
+        "gzip"
+      )
+      .header(
+        header::ACCEPT,
+        "*/*"
+      )
+      .header(
+        header::CONNECTION,
+        "keep-alive"
+      )
+      .header(
+        header::CONTENT_TYPE,
+        "application/json"
+      )
+      .header(
+        header::CONTENT_LENGTH,
+        0
+      );
 
     if let Some(params) = params {
       builder = builder.header(
-        "Authorization",
+        header::AUTHORIZATION,
         format!(
-          "OAuth {}",
-          params.into_iter()
+          "OAuth {params}",
+          params = params.into_iter()
             .map(
               |(k, v)| 
-                format!(r#"{}="{}""#, urlencoding::encode(k), urlencoding::encode(&v)).into()
+                format!(
+                  r#"{key}="{value}""#,
+                  key = urlencoding::encode(k),
+                  value = urlencoding::encode(&v)
+                ).into()
             )
             .collect::<Vec<Arc<str>>>()
             .join(", ")
@@ -412,7 +449,9 @@ impl OAuthSession {
     let mut buffer: Vec<u8> = Vec::with_capacity(content_length);
 
     GzDecoder::new(
-      &*body::to_bytes(response).await.expect("Concatenate buffer failed.")
+      &*body::to_bytes(
+        response
+      ).await.expect("Concatenate buffer failed.")
     ).read_vectored(
       &mut [IoSliceMut::new(&mut buffer)]
     ).expect("Gzip decode failed.");
@@ -420,7 +459,10 @@ impl OAuthSession {
     Arc::from(std::str::from_utf8(&buffer).expect("Decode utf-8 failed."))
   }
 
-  pub(self) fn decode_token(self: &Self, raw_token: &str) -> HashMap<Arc<str>, Arc<str>> {
+  pub(self) fn decode_token(
+    self: &Self,
+    raw_token: &str
+  ) -> HashMap<Arc<str>, Arc<str>> {
     debug!("Decoding token from response: {:?}", raw_token);
 
     let mut token: HashMap<Arc<str>, Arc<str>> = HashMap::new();
