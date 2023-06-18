@@ -11,7 +11,6 @@ use hmac::{Hmac, Mac};
 use itertools::Itertools;
 use tracing::debug;
 use regex::Regex;
-use serenity::Error;
 use sha1::Sha1;
 use hyper::{
   Client,
@@ -27,6 +26,7 @@ use hyper_rustls::{
   HttpsConnectorBuilder
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
+use anyhow::{Result, anyhow};
 
 
 type HmacSha1 = Hmac<Sha1>;
@@ -53,7 +53,7 @@ impl TwitterClient {
     consumer_secret: Arc<str>,
     access_token: Option<Arc<str>>,
     access_token_secret: Option<Arc<str>>
-  ) -> Result<TwitterClient, Error> {
+  ) -> Result<TwitterClient> {
     Ok(
       TwitterClient {
         request_token: None,
@@ -70,7 +70,7 @@ impl TwitterClient {
     )
   }
 
-  pub async fn get_authorization_url(self: &mut Self) -> Result<Arc<str>, Error> {
+  pub async fn get_authorization_url(self: &mut Self) -> Result<Arc<str>> {
     let token: HashMap<Arc<str>, Arc<str>> = self.oauth.fetch_token(
       "https://api.twitter.com/oauth/request_token",
       BTreeMap::new()
@@ -84,7 +84,7 @@ impl TwitterClient {
         "https://api.twitter.com/oauth/authorize?oauth_token={oauth_token}",
         oauth_token = self.request_token
           .clone()
-          .ok_or(Error::Other("Get request token failed."))?
+          .ok_or(anyhow!("Get request token failed."))?
       ).into()
     )
   }
@@ -92,27 +92,27 @@ impl TwitterClient {
   pub async fn get_access_token(
     self: &mut Self,
     verifier: &str
-  ) -> Result<(&str, &str), Error> {
+  ) -> Result<(&str, &str)> {
     (self.access_token, self.access_token_secret) = self.oauth.get_access_token(
       verifier,
       self.request_token
         .as_ref()
-        .ok_or(Error::Other("Get request token failed."))?
+        .ok_or(anyhow!("Get request token failed."))?
     ).await?;
 
     Ok(
       (
         self.access_token
           .as_ref()
-          .ok_or(Error::Other("Get access token failed."))?,
+          .ok_or(anyhow!("Get access token failed."))?,
         self.access_token_secret
           .as_ref()
-          .ok_or(Error::Other("Get access token secret failed."))?
+          .ok_or(anyhow!("Get access token secret failed."))?
       )
     )
   }
 
-  pub async fn like(self: &mut Self, tweet_id: &str) -> Result<(), Error> {
+  pub async fn like(self: &mut Self, tweet_id: &str) -> Result<()> {
     let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/favorites/create.json?id={tweet_id}",
       tweet_id = tweet_id
@@ -123,7 +123,7 @@ impl TwitterClient {
       "oauth_token",
       self.access_token
         .clone()
-        .ok_or(Error::Other("Get access token failed."))?
+        .ok_or(anyhow!("Get access token failed."))?
     );
     params.insert(
       "id",
@@ -135,7 +135,7 @@ impl TwitterClient {
     Ok(())
   }
 
-  pub async fn unlike(self: &mut Self, tweet_id: &str) -> Result<(), Error> {
+  pub async fn unlike(self: &mut Self, tweet_id: &str) -> Result<()> {
     let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/favorites/destroy.json?id={tweet_id}",
       tweet_id = tweet_id
@@ -146,7 +146,7 @@ impl TwitterClient {
       "oauth_token",
       self.access_token
         .clone()
-        .ok_or(Error::Other("Get access token failed."))?
+        .ok_or(anyhow!("Get access token failed."))?
     );
     params.insert(
       "id",
@@ -158,7 +158,7 @@ impl TwitterClient {
     Ok(())
   }
 
-  pub async fn retweet(self: &mut Self, tweet_id: &str) -> Result<(), Error> {
+  pub async fn retweet(self: &mut Self, tweet_id: &str) -> Result<()> {
     let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/statuses/retweet/{tweet_id}.json",
       tweet_id = tweet_id
@@ -169,7 +169,7 @@ impl TwitterClient {
       "oauth_token",
       self.access_token
         .clone()
-        .ok_or(Error::Other("Get access token failed."))?
+        .ok_or(anyhow!("Get access token failed."))?
     );
 
     self.oauth.request(&url, params).await?;
@@ -177,7 +177,7 @@ impl TwitterClient {
     Ok(())
   }
 
-  pub async fn unretweet(self: &mut Self, tweet_id: &str) -> Result<(), Error> {
+  pub async fn unretweet(self: &mut Self, tweet_id: &str) -> Result<()> {
     let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/statuses/unretweet/{tweet_id}.json",
       tweet_id = tweet_id
@@ -188,7 +188,7 @@ impl TwitterClient {
       "oauth_token",
       self.access_token
         .clone()
-        .ok_or(Error::Other("Get access token failed."))?
+        .ok_or(anyhow!("Get access token failed."))?
     );
     
     self.oauth.request(&url, params).await?;
@@ -196,7 +196,7 @@ impl TwitterClient {
     Ok(())
   }
 
-  pub async fn get_author_id(self: &mut Self, tweet_id: &str) -> Result<Arc<str>, Error> {
+  pub async fn get_author_id(self: &mut Self, tweet_id: &str) -> Result<Arc<str>> {
     let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/statuses/lookup.json?id={tweet_id}&trim_user=true",
       tweet_id = tweet_id
@@ -207,7 +207,7 @@ impl TwitterClient {
       "oauth_token",
       self.access_token
         .clone()
-        .ok_or(Error::Other("Get access token failed."))?
+        .ok_or(anyhow!("Get access token failed."))?
     );
     params.insert(
       "id",
@@ -230,7 +230,7 @@ impl TwitterClient {
     )
   }
 
-  pub async fn follow(self: &mut Self, user_id: &str) -> Result<(), Error> {
+  pub async fn follow(self: &mut Self, user_id: &str) -> Result<()> {
     let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/friendships/create.json?user_id={user_id}",
       user_id = user_id
@@ -241,7 +241,7 @@ impl TwitterClient {
       "oauth_token",
       self.access_token
         .clone()
-        .ok_or(Error::Other("Get access token failed."))?
+        .ok_or(anyhow!("Get access token failed."))?
     );
     params.insert(
       "user_id",
@@ -253,7 +253,7 @@ impl TwitterClient {
     Ok(())
   }
 
-  pub async fn unfollow(self: &mut Self, user_id: &str) -> Result<(), Error> {
+  pub async fn unfollow(self: &mut Self, user_id: &str) -> Result<()> {
     let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/friendships/destroy.json?user_id={user_id}",
       user_id = user_id
@@ -264,7 +264,7 @@ impl TwitterClient {
       "oauth_token",
       self.access_token
         .clone()
-        .ok_or(Error::Other("Get access token failed."))?
+        .ok_or(anyhow!("Get access token failed."))?
     );
     params.insert(
       "user_id",
@@ -297,7 +297,7 @@ impl OAuthSession {
     client_secret: Arc<str>,
     resource_owner_key: Option<Arc<str>>,
     resource_owner_secret: Option<Arc<str>>
-  ) -> Result<OAuthSession, Error> {
+  ) -> Result<OAuthSession> {
     let https_connector: HttpsConnector = HttpsConnectorBuilder::new()
       .with_native_roots()
       .https_only()
@@ -319,13 +319,13 @@ impl OAuthSession {
               &resource_owner_secret.unwrap_or("".into())
             )
           ).as_bytes()
-        ).or(Err(Error::Other("Create hash failed.")))?,
+        )?,
         rng: StdRng::from_entropy()
       }
     )
   }
 
-  pub(self) fn update_hash_key(self: &mut Self) -> Result<(), Error> {
+  pub(self) fn update_hash_key(self: &mut Self) -> Result<()> {
     self.hmac_sha1 = HmacSha1::new_from_slice(
       format!(
         "{consumer_secret}&{token_secret}",
@@ -334,7 +334,7 @@ impl OAuthSession {
           &self.resource_owner_secret.clone().unwrap_or("".into())
         )
       ).as_bytes()
-    ).or(Err(Error::Other("Create hash failed.")))?;
+    )?;
 
     Ok(())
   }
@@ -386,7 +386,7 @@ impl OAuthSession {
   pub(self) fn apply_oauth_params(
     self: &mut Self,
     params: &mut BTreeMap<&str, Arc<str>>
-  ) -> Result<(), Error> {
+  ) -> Result<()> {
     params.insert(
       "oauth_consumer_key",
       self.client_key.clone()
@@ -400,8 +400,7 @@ impl OAuthSession {
     params.insert(
       "oauth_timestamp",
       SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .or(Err(Error::Other("Epoch fail!")))?
+        .duration_since(UNIX_EPOCH)?
         .as_secs()
         .to_string()
         .into()
@@ -422,7 +421,7 @@ impl OAuthSession {
     self: &Self,
     url: &str,
     params: Option<BTreeMap<&str, Arc<str>>>
-  ) -> Result<Request<Body>, Error> {
+  ) -> Result<Request<Body>> {
     let mut builder: request::Builder = Request::post(url)
       .header(
         header::USER_AGENT,
@@ -469,9 +468,7 @@ impl OAuthSession {
       );
     }
 
-    let request: Request<Body> = builder
-      .body(Body::empty())
-      .or(Err(Error::Other("Build request failed.")))?;
+    let request: Request<Body> = builder.body(Body::empty())?;
 
     debug!("Updated headers: {:?}", request.headers());
 
@@ -482,37 +479,31 @@ impl OAuthSession {
     self: &mut Self,
     url: &str,
     mut params: BTreeMap<&str, Arc<str>>
-  ) -> Result<Arc<str>, Error> {
+  ) -> Result<Arc<str>> {
     self.apply_oauth_params(&mut params)?;
 
     self.apply_signture(
-      url.split("?").next().ok_or(Error::Other("Split URL failed."))?,
+      url.split("?").next().ok_or(anyhow!("Split URL failed."))?,
       &mut params
     );
 
     let response: Response<Body> = self.http_client.request(
       self.build_request(url, Some(params))?
-    ).await.or(Err(Error::Other("HTTP request failed.")))?;
+    ).await?;
 
     let content_length: usize = response.headers()
       .get(header::CONTENT_LENGTH)
-      .ok_or(Error::Other("Get Content-Length failed."))?
-      .to_str()
-      .or(Err(Error::Other("Parse str failed.")))?
-      .parse()
-      .or(Err(Error::Other("Parse length to usize failed")))?;
+      .ok_or(anyhow!("Get Content-Length failed."))?
+      .to_str()?
+      .parse()?;
 
     let mut body: String = String::with_capacity(content_length);
 
     debug!("Decoding response: {:?}", response.body());
 
     GzDecoder::new(
-      &*body::to_bytes(
-        response
-      ).await.or(Err(Error::Other("Concatenate buffer failed.")))?
-    ).read_to_string(
-      &mut body
-    ).or(Err(Error::Other("Gzip decode failed.")))?;
+      &*body::to_bytes(response).await?
+    ).read_to_string(&mut body)?;
 
     debug!("Response body: {:?}", body);
 
@@ -522,21 +513,17 @@ impl OAuthSession {
   pub(self) fn decode_token(
     self: &Self,
     raw_token: &str
-  ) -> Result<HashMap<Arc<str>, Arc<str>>, Error> {
+  ) -> Result<HashMap<Arc<str>, Arc<str>>> {
     debug!("Decoding token from response: {:?}", raw_token);
 
     let mut token: HashMap<Arc<str>, Arc<str>> = HashMap::new();
     for raw_token_pair in raw_token.split("&") {
-      let token_pair: Result<(&str, &str), Error> = raw_token_pair
+      let (k, v): (&str, &str) = raw_token_pair
         .split("=")
         .collect_tuple()
-        .ok_or(Error::Other("Decode token failed."));
+        .ok_or(anyhow!("Decode token failed."))?;
 
-      if let Ok((k, v)) = token_pair {
-        token.insert(k.into(), v.into());
-      } else {
-        return Err(token_pair.err().unwrap());
-      }
+      token.insert(k.into(), v.into());
     }
 
     debug!("Obtained token: {:?}", token);
@@ -548,7 +535,7 @@ impl OAuthSession {
     self: &mut Self,
     url: &str,
     params: BTreeMap<&str, Arc<str>>
-  ) -> Result<HashMap<Arc<str>, Arc<str>>, Error> {
+  ) -> Result<HashMap<Arc<str>, Arc<str>>> {
     let raw_token: Arc<str> = self.request(url, params).await?;
     self.decode_token(&raw_token)
   }
@@ -557,7 +544,7 @@ impl OAuthSession {
     self: &mut Self,
     verifier: &str,
     request_token: &str
-  ) -> Result<(Option<Arc<str>> ,Option<Arc<str>>), Error> {
+  ) -> Result<(Option<Arc<str>> ,Option<Arc<str>>)> {
     let url: Arc<str> = format!(
       "https://api.twitter.com/oauth/access_token?oauth_verifier={oauth_verifier}&oauth_token={oauth_token}",
       oauth_verifier = verifier,

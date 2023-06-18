@@ -16,9 +16,9 @@ use serenity::{
     CreateMessage,
     CreateEmbed
   },
-  Error,
   utils::Color
 };
+use anyhow::Result;
 
 use crate::{
   oauth::TwitterClient,
@@ -38,7 +38,7 @@ static AUTH_PIN_REGEX: OnceLock<Regex> = OnceLock::new();
 pub async fn execute(
   context: &Context,
   interaction: &ApplicationCommandInteraction
-) -> Result<(), Error> {
+) -> Result<()> {
   let is_dm: bool = context.http.get_channel(
     *interaction.channel_id.as_u64()
   ).await?.private().is_some();
@@ -100,7 +100,7 @@ async fn connect_account(
   context: &Context,
   interaction: &ApplicationCommandInteraction,
   is_dm: bool
-) -> Result<(), Error> {
+) -> Result<()> {
   let dm_channel: PrivateChannel = interaction
     .user
     .create_dm_channel(&context.http)
@@ -189,7 +189,7 @@ async fn connect_account(
     return Ok(());
   }
 
-  let access_token_pair: Result<(&str, &str), Error> = twitter_client
+  let access_token_pair: Result<(&str, &str)> = twitter_client
     .get_access_token(&pin_code.unwrap().content)
     .await;
 

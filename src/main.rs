@@ -17,7 +17,6 @@ use serenity::{
     interaction::Interaction,
     Ready,
     command::Command},
-  Error,
   Client,
   builder::{
     CreateApplicationCommands,
@@ -25,6 +24,7 @@ use serenity::{
   }
 };
 use tracing::{Level, log::info};
+use anyhow::{Result, anyhow};
 
 
 struct Handler;
@@ -40,13 +40,13 @@ impl EventHandler for Handler {
     ) = interaction {
       println!("Received command interaction: {:#?}", command);
 
-      let result: Result<(), Error> = match command.data.name.as_str() {
+      let result: Result<()> = match command.data.name.as_str() {
         "connect" => commands::connect::execute(&context, &command).await,
-        _ => Err(Error::Other("Interaction not found."))
+        _ => Err(anyhow!("Interaction not found."))
       };
 
       if let Err(why) = result {
-        println!("Interaction error: {}", why);
+        println!("Command interaction error: {}", why);
       }
     }
   }

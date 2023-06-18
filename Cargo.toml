@@ -63,3 +63,6 @@ version = "0.10.5"
 
 [dependencies.regex]
 version = "1.8.3"
+
+[dependencies.anyhow]
+version = "1.0.71"
