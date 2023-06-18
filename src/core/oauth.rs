@@ -2,7 +2,8 @@ use std::{
   collections::{HashMap, BTreeMap},
   time::{SystemTime, UNIX_EPOCH},
   io::Read,
-  sync::{OnceLock, Arc}, env
+  sync::{OnceLock, Arc},
+  env
 };
 
 use base64::{engine::general_purpose, Engine};
@@ -12,7 +13,13 @@ use itertools::Itertools;
 use rust_i18n::t;
 use serenity::{
   model::{user::User, prelude::Message},
-  prelude::Context, utils::Color, builder::{CreateEmbed, CreateMessage, CreateEmbedFooter}
+  prelude::Context,
+  utils::Color,
+  builder::{
+    CreateEmbed,
+    CreateMessage,
+    CreateEmbedFooter
+  }
 };
 use tracing::debug;
 use regex::Regex;
@@ -24,7 +31,8 @@ use hyper::{
   Request,
   body,
   Response,
-  http::request, header
+  http::request::Builder,
+  header
 };
 use hyper_rustls::{
   HttpsConnector as rustls_HttpsConnector,
@@ -33,10 +41,9 @@ use hyper_rustls::{
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use anyhow::{Result, anyhow, bail};
 
-use crate::core::utils::{
-  TWITTER_CONSUMER_KEY,
-  TWITTER_CONSUMER_SECRET, EMBED_ERROR_COLOR
-};
+use crate::core::utils::EMBED_ERROR_COLOR;
+
+use super::cache::AccessTokenCache;
 
 
 type HmacSha1 = Hmac<Sha1>;
@@ -44,6 +51,9 @@ type HttpsConnector = rustls_HttpsConnector<HttpConnector>;
 
 
 static LOOKUP_USER_ID_REGEX: OnceLock<Regex> = OnceLock::new();
+
+pub static TWITTER_CONSUMER_KEY: OnceLock<Arc<str>> = OnceLock::new();
+pub static TWITTER_CONSUMER_SECRET: OnceLock<Arc<str>> = OnceLock::new();
 
 
 #[derive(Debug)]
@@ -59,8 +69,6 @@ unsafe impl Send for TwitterClient {}
 
 impl TwitterClient {
   pub fn new(
-    consumer_key: Arc<str>,
-    consumer_secret: Arc<str>,
     access_token: Option<Arc<str>>,
     access_token_secret: Option<Arc<str>>
   ) -> Result<TwitterClient> {
@@ -71,65 +79,6 @@ impl TwitterClient {
         access_token: access_token.clone(),
         access_token_secret: access_token_secret.clone(),
         oauth: OAuthSession::new(
-          consumer_key,
-          consumer_secret,
-          access_token,
-          access_token_secret
-        )?
-      }
-    )
-  }
-
-  pub async fn get_client(context: &Context, user: User) -> Result<TwitterClient> {
-    let pinned_messages: Vec<Message> = user
-      .create_dm_channel(&context.http)
-      .await?
-      .pins(&context.http)
-      .await?;
-
-    if let Some(message) = pinned_messages.first() {
-      if !message.content.contains("Twitter User Access Token") {
-        user.direct_message(
-          &context.http,
-          |message: &mut CreateMessage<'_>| {
-            message
-              .embed(
-                |embed: &mut CreateEmbed| {
-                  embed
-                    .color(Color::new(EMBED_ERROR_COLOR))
-                    .title(
-                      t!(
-                        "core.oauth.get-client.notify-embed.title",
-                        locale = "en"
-                      )
-                    )
-                    .description(
-                      t!(
-                        "core.oauth.get-client.notify-embed.description",
-                        locale = "en"
-                      )
-                    )
-                    .footer(
-                      |footer: &mut CreateEmbedFooter| {
-                        footer.text("ERR_ACCESS_TOKEN_NOT_FOUND")
-                      }
-                    )
-                }
-              )
-          }
-        ).await?;
-        bail!("Access Token not found.");
-      }
-
-      let access_token_pair: Option<(String, String)> = message
-        .content
-        .split("\n")
-        .skip(1)
-        .map(|s: &str| s.replace("`", "").replace("||", ""))
-        .collect_tuple::<(String, String)>();
-
-      if let Some(access_token_pair) = access_token_pair {
-        TwitterClient::new(
           TWITTER_CONSUMER_KEY.get_or_init(
             || {
               env::var("TWITTER_CONSUMER_KEY")
@@ -144,14 +93,85 @@ impl TwitterClient {
                 .into()
             }
           ).clone(),
+          access_token,
+          access_token_secret
+        )?
+      }
+    )
+  }
+
+  pub async fn get_client(context: &Context, user: User) -> Result<TwitterClient> {
+    let cache: &AccessTokenCache = AccessTokenCache::init();
+
+    if let Some(cache_data) = cache.get(
+      *user.id.as_u64()
+    ).await {
+      return Ok(
+        TwitterClient::new(
+          Some(cache_data.access_token),
+          Some(cache_data.access_token_secret)
+        )?
+      );
+    }
+
+    let pinned_message: Message = match user.create_dm_channel(
+      &context.http
+    ).await?.pins(&context.http).await?.first() {
+      Some(pinned_message) => pinned_message.to_owned(),
+      None => bail!("Pinned message not found.")
+    };
+
+    if !pinned_message.content.contains("Twitter User Access Token") {
+      user.direct_message(
+        &context.http,
+        |message: &mut CreateMessage<'_>| {
+          message
+            .embed(
+              |embed: &mut CreateEmbed| {
+                embed
+                  .color(Color::new(EMBED_ERROR_COLOR))
+                  .title(
+                    t!(
+                      "core.oauth.get-client.notify-embed.title",
+                      locale = "en"
+                    )
+                  )
+                  .description(
+                    t!(
+                      "core.oauth.get-client.notify-embed.description",
+                      locale = "en"
+                    )
+                  )
+                  .footer(
+                    |footer: &mut CreateEmbedFooter| {
+                      footer.text("ERR_ACCESS_TOKEN_NOT_FOUND")
+                    }
+                  )
+              }
+            )
+        }
+      ).await?;
+      bail!("Access Token not found.");
+    }
+
+    match pinned_message.content.split("\n").skip(1).map(
+      |s: &str| {
+        s.replace("`", "").replace("||", "")
+      }
+    ).collect_tuple::<(String, String)>() {
+      Some(access_token_pair) => {
+        cache.insert(
+          *user.id.as_u64(),
+          access_token_pair.0.clone().into(),
+          access_token_pair.1.clone().into()
+        ).await;
+  
+        TwitterClient::new(
           Some(access_token_pair.0.into()),
           Some(access_token_pair.1.into())
         )
-      } else {
-        bail!("Token collect failed.");
-      }
-    } else {
-      bail!("Pinned message not found.");
+      },
+      None => bail!("Token collect failed.")
     }
   }
 
@@ -281,7 +301,10 @@ impl TwitterClient {
     Ok(())
   }
 
-  pub async fn get_author_id(self: &mut Self, tweet_id: &str) -> Result<Arc<str>> {
+  pub async fn get_author_id(
+    self: &mut Self,
+    tweet_id: &str
+  ) -> Result<Arc<str>> {
     let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/statuses/lookup.json?id={tweet_id}&trim_user=true",
       tweet_id = tweet_id
@@ -310,7 +333,9 @@ impl TwitterClient {
             r#".*"user":\{"id":(?P<id>[0-9].*),"id_str":"[0-9].*"\}.*"#
           ).expect("Regex init failed.")
         )
-        .replace(&self.oauth.request(&url, params).await?, "$id")
+        .replace(
+          &self.oauth.request(&url, params).await?, "$id"
+        )
         .into()
     )
   }
@@ -338,7 +363,10 @@ impl TwitterClient {
     Ok(())
   }
 
-  pub async fn unfollow(self: &mut Self, user_id: &str) -> Result<()> {
+  pub async fn unfollow(
+    self: &mut Self,
+    user_id: &str
+  ) -> Result<()> {
     let url: Arc<str> = format!(
       "https://api.twitter.com/1.1/friendships/destroy.json?user_id={user_id}",
       user_id = user_id
@@ -507,7 +535,7 @@ impl OAuthSession {
     url: &str,
     params: Option<BTreeMap<&str, Arc<str>>>
   ) -> Result<Request<Body>> {
-    let mut builder: request::Builder = Request::post(url)
+    let mut builder: Builder = Request::post(url)
       .header(
         header::USER_AGENT,
         "Rust@2021/hyper@0.14.26/hyper-rustls@0.24.0"
@@ -608,7 +636,9 @@ impl OAuthSession {
       let (k, v): (&str, &str) = raw_token_pair
         .split("=")
         .collect_tuple()
-        .ok_or(anyhow!("Decode token failed."))?;
+        .ok_or(
+          anyhow!("Decode token failed: {:?}", raw_token_pair)
+        )?;
 
       token.insert(k.into(), v.into());
     }

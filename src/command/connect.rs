@@ -1,4 +1,4 @@
-use std::{env, sync::{Arc, OnceLock}, time::Duration};
+use std::{sync::{Arc, OnceLock}, time::Duration};
 
 use regex::Regex;
 use rust_i18n::t;
@@ -25,9 +25,8 @@ use crate::core::{
   utils::{
     EMBED_INFO_COLOR,
     EMBED_ERROR_COLOR,
-    TWITTER_CONSUMER_KEY,
-    TWITTER_CONSUMER_SECRET,
-    clean_up_dm, check_dm
+    clean_up_dm,
+    check_dm
   }
 };
 
@@ -97,24 +96,7 @@ async fn connect_account(
 
   clean_up_dm(context, &dm_channel).await?;
 
-  let mut twitter_client: TwitterClient = TwitterClient::new(
-    TWITTER_CONSUMER_KEY.get_or_init(
-      || {
-        env::var("TWITTER_CONSUMER_KEY")
-          .expect("TWITTER_CONSUMER_KEY is not set.")
-          .into()
-      }
-    ).clone(),
-    TWITTER_CONSUMER_SECRET.get_or_init(
-      || {
-        env::var("TWITTER_CONSUMER_SECRET")
-          .expect("TWITTER_CONSUMER_SECRET is not set.")
-          .into()
-      }
-    ).clone(),
-    None,
-    None
-  )?;
+  let mut twitter_client: TwitterClient = TwitterClient::new(None, None)?;
 
   let auth_link: Arc<str> = twitter_client.get_authorization_url().await?;
 

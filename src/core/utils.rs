@@ -23,9 +23,6 @@ use anyhow::Result;
 
 static TWITTER_POST_ID_REGEX: OnceLock<Regex> = OnceLock::new();
 
-pub static TWITTER_CONSUMER_KEY: OnceLock<Arc<str>> = OnceLock::new();
-pub static TWITTER_CONSUMER_SECRET: OnceLock<Arc<str>> = OnceLock::new();
-
 pub static EMBED_INFO_COLOR: u32 = 0x3983f2;
 pub static EMBED_ERROR_COLOR: u32 = 0xeca42c;
 
