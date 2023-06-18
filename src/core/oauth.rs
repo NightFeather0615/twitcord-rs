@@ -2,13 +2,18 @@ use std::{
   collections::{HashMap, BTreeMap},
   time::{SystemTime, UNIX_EPOCH},
   io::Read,
-  sync::{OnceLock, Arc}
+  sync::{OnceLock, Arc}, env
 };
 
 use base64::{engine::general_purpose, Engine};
 use flate2::read::GzDecoder;
 use hmac::{Hmac, Mac};
 use itertools::Itertools;
+use rust_i18n::t;
+use serenity::{
+  model::{user::User, prelude::Message},
+  prelude::Context, utils::Color, builder::{CreateEmbed, CreateMessage, CreateEmbedFooter}
+};
 use tracing::debug;
 use regex::Regex;
 use sha1::Sha1;
@@ -26,14 +31,19 @@ use hyper_rustls::{
   HttpsConnectorBuilder
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
+
+use crate::core::utils::{
+  TWITTER_CONSUMER_KEY,
+  TWITTER_CONSUMER_SECRET, EMBED_ERROR_COLOR
+};
 
 
 type HmacSha1 = Hmac<Sha1>;
 type HttpsConnector = rustls_HttpsConnector<HttpConnector>;
 
 
-pub(self) static LOOKUP_USER_ID_REGEX: OnceLock<Regex> = OnceLock::new();
+static LOOKUP_USER_ID_REGEX: OnceLock<Regex> = OnceLock::new();
 
 
 #[derive(Debug)]
@@ -68,6 +78,81 @@ impl TwitterClient {
         )?
       }
     )
+  }
+
+  pub async fn get_client(context: &Context, user: User) -> Result<TwitterClient> {
+    let pinned_messages: Vec<Message> = user
+      .create_dm_channel(&context.http)
+      .await?
+      .pins(&context.http)
+      .await?;
+
+    if let Some(message) = pinned_messages.first() {
+      if !message.content.contains("Twitter User Access Token") {
+        user.direct_message(
+          &context.http,
+          |message: &mut CreateMessage<'_>| {
+            message
+              .embed(
+                |embed: &mut CreateEmbed| {
+                  embed
+                    .color(Color::new(EMBED_ERROR_COLOR))
+                    .title(
+                      t!(
+                        "core.oauth.get-client.notify-embed.title",
+                        locale = "en"
+                      )
+                    )
+                    .description(
+                      t!(
+                        "core.oauth.get-client.notify-embed.description",
+                        locale = "en"
+                      )
+                    )
+                    .footer(
+                      |footer: &mut CreateEmbedFooter| {
+                        footer.text("ERR_ACCESS_TOKEN_NOT_FOUND")
+                      }
+                    )
+                }
+              )
+          }
+        ).await?;
+        bail!("Access Token not found.");
+      }
+
+      let access_token_pair: Option<(String, String)> = message
+        .content
+        .split("\n")
+        .skip(1)
+        .map(|s: &str| s.replace("`", "").replace("||", ""))
+        .collect_tuple::<(String, String)>();
+
+      if let Some(access_token_pair) = access_token_pair {
+        TwitterClient::new(
+          TWITTER_CONSUMER_KEY.get_or_init(
+            || {
+              env::var("TWITTER_CONSUMER_KEY")
+                .expect("TWITTER_CONSUMER_KEY is not set.")
+                .into()
+            }
+          ).clone(),
+          TWITTER_CONSUMER_SECRET.get_or_init(
+            || {
+              env::var("TWITTER_CONSUMER_SECRET")
+                .expect("TWITTER_CONSUMER_SECRET is not set.")
+                .into()
+            }
+          ).clone(),
+          Some(access_token_pair.0.into()),
+          Some(access_token_pair.1.into())
+        )
+      } else {
+        bail!("Token collect failed.");
+      }
+    } else {
+      bail!("Pinned message not found.");
+    }
   }
 
   pub async fn get_authorization_url(self: &mut Self) -> Result<Arc<str>> {
@@ -222,7 +307,7 @@ impl TwitterClient {
       LOOKUP_USER_ID_REGEX
         .get_or_init(
           || Regex::new(
-            r#".*"user":\{"id":(?P<id>[0-9]{19}),"id_str":"[0-9]{19}"\}.*"#
+            r#".*"user":\{"id":(?P<id>[0-9].*),"id_str":"[0-9].*"\}.*"#
           ).expect("Regex init failed.")
         )
         .replace(&self.oauth.request(&url, params).await?, "$id")
@@ -487,6 +572,8 @@ impl OAuthSession {
       &mut params
     );
 
+    debug!("Sending request: {:?}", url);
+
     let response: Response<Body> = self.http_client.request(
       self.build_request(url, Some(params))?
     ).await?;
@@ -499,13 +586,13 @@ impl OAuthSession {
 
     let mut body: String = String::with_capacity(content_length);
 
-    debug!("Decoding response: {:?}", response.body());
+    debug!("Response length: {:?}", content_length);
 
     GzDecoder::new(
       &*body::to_bytes(response).await?
     ).read_to_string(&mut body)?;
 
-    debug!("Response body: {:?}", body);
+    debug!("Decoded body: {:?}", body);
 
     Ok(body.into())
   }

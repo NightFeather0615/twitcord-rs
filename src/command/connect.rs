@@ -1,12 +1,10 @@
 use std::{env, sync::{Arc, OnceLock}, time::Duration};
 
 use regex::Regex;
+use rust_i18n::t;
 use serenity::{
   model::prelude::{
-    interaction::{
-      application_command::ApplicationCommandInteraction,
-      InteractionResponseType
-    },
+    interaction::application_command::ApplicationCommandInteraction,
     PrivateChannel,
     Message
   },
@@ -14,20 +12,22 @@ use serenity::{
   builder::{
     CreateApplicationCommand,
     CreateMessage,
-    CreateEmbed
+    CreateEmbed,
+    CreateInteractionResponseFollowup,
+    CreateEmbedFooter
   },
   utils::Color
 };
 use anyhow::Result;
 
-use crate::{
+use crate::core::{
   oauth::TwitterClient,
   utils::{
     EMBED_INFO_COLOR,
     EMBED_ERROR_COLOR,
     TWITTER_CONSUMER_KEY,
     TWITTER_CONSUMER_SECRET,
-    clean_up_dm
+    clean_up_dm, check_dm
   }
 };
 
@@ -39,36 +39,15 @@ pub async fn execute(
   context: &Context,
   interaction: &ApplicationCommandInteraction
 ) -> Result<()> {
-  let is_dm: bool = context.http.get_channel(
-    *interaction.channel_id.as_u64()
-  ).await?.private().is_some();
-
-  if is_dm {
-    interaction.defer(&context.http).await?;
-  } else {
-    interaction.create_interaction_response(
-      &context.http,
-      |response| {
-        response
-          .kind(
-            InteractionResponseType::ChannelMessageWithSource
-          )
-          .interaction_response_data(
-            |message| {
-              message
-                .ephemeral(true)
-                .content(
-                  "Please check your DM, and make sure you turned allow direct messages on"
-                )
-            }
-          )
-      }
-    ).await?;
-  }
+  let is_dm: bool = check_dm(
+    context,
+    &interaction,
+  ).await?;
 
   connect_account(
     context,
-    &interaction, is_dm
+    &interaction,
+    is_dm
   ).await
 }
 
@@ -77,20 +56,30 @@ pub fn register(
 ) -> &mut CreateApplicationCommand {
   command
     .name("connect")
-    .description("Connect to your Twitter account")
     .name_localized("zh-TW", "連接")
-    .description_localized("zh-TW", "連接你的 Twitter 帳號")
     .name_localized("zh-CN", "连接")
+    .description("Connect to your Twitter account")
+    .description_localized("zh-TW", "連接你的 Twitter 帳號")
     .description_localized("zh-CN", "连接你的 Twitter 帐号")
 }
 
-fn build_auth_embed(embed: &mut CreateEmbed, auth_link: Arc<str>) -> &mut CreateEmbed {
+fn build_auth_embed(
+  embed: &mut CreateEmbed,
+  auth_link: Arc<str>,
+  locale: Arc<str>
+) -> &mut CreateEmbed {
   embed
     .color(Color::new(EMBED_INFO_COLOR))
-    .title(":link: Connect to Your Twitter Account")
+    .title(
+      t!(
+        "command.connect.auth-embed.title",
+        locale = &locale
+      )
+    )
     .description(
-      format!(
-        "Please go to [Twitter API Authorize]({auth_link}), click on \"Authorize app\", then send the verification PIN code here within 60 seconds",
+      t!(
+        "command.connect.auth-embed.description",
+        locale = &locale,
         auth_link = auth_link
       )
     )
@@ -132,11 +121,15 @@ async fn connect_account(
   if is_dm {
     interaction.create_followup_message(
       &context.http,
-      |response| {
+      |response: &mut CreateInteractionResponseFollowup<'_>| {
         response
           .embed(
             |embed: &mut CreateEmbed| {
-              build_auth_embed(embed, auth_link)
+              build_auth_embed(
+                embed,
+                auth_link,
+                interaction.locale.clone().into()
+              )
             }
           )
       }
@@ -146,7 +139,11 @@ async fn connect_account(
       &context.http,
       |message: &mut CreateMessage<'_>| message.add_embed(
         |embed: &mut CreateEmbed| {
-          build_auth_embed(embed, auth_link)
+          build_auth_embed(
+            embed,
+            auth_link,
+            interaction.locale.clone().into()
+          )
         }
       )
     ).await?;
@@ -177,10 +174,22 @@ async fn connect_account(
         |embed: &mut CreateEmbed| {
           embed
             .color(Color::new(EMBED_ERROR_COLOR))
-            .title(":warning: Connect Failed")
-            .description("Authorization timeout, please try again")
+            .title(
+              t!(
+                "command.connect.timeout-embed.title",
+                locale = &interaction.locale
+              )
+            )
+            .description(
+              t!(
+                "command.connect.timeout-embed.description",
+                locale = &interaction.locale
+              )
+            )
             .footer(
-              |footer| footer.text("ERR_TIMEOUT")
+              |footer: &mut CreateEmbedFooter| {
+                footer.text("ERR_TIMEOUT")
+              }
             )
         }
       )
@@ -200,8 +209,18 @@ async fn connect_account(
         |embed: &mut CreateEmbed| {
           embed
             .color(Color::new(EMBED_INFO_COLOR))
-            .title(":white_check_mark: Account Connected")
-            .description("You can disconnect to your account by using `/disconnect` at any time")
+            .title(
+              t!(
+                "command.connect.success-embed.title",
+                locale = &interaction.locale
+              )
+            )
+            .description(
+              t!(
+                "command.connect.success-embed.description",
+                locale = &interaction.locale
+              )
+            )
         }
       )
     ).await?;
@@ -225,10 +244,22 @@ async fn connect_account(
         |embed: &mut CreateEmbed| {
           embed
             .color(Color::new(EMBED_ERROR_COLOR))
-            .title(":warning: Connect Failed")
-            .description("Unauthorized PIN code")
+            .title(
+              t!(
+                "command.connect.unauthorized-embed.title",
+                locale = &interaction.locale
+              )
+            )
+            .description(
+              t!(
+                "command.connect.unauthorized-embed.description",
+                locale = &interaction.locale
+              )
+            )
             .footer(
-              |footer| footer.text("ERR_UNAUTHORIZED")
+              |footer: &mut CreateEmbedFooter| {
+                footer.text("ERR_UNAUTHORIZED")
+              }
             )
         }
       )

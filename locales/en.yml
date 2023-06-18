@@ -1,0 +1,32 @@
+command:
+  check-dm: "Please check your DM, and make sure you turned allow direct messages on in:\n`Settings -> Privacy & Safety -> Allow direct messages from server members`"
+
+  connect:
+    auth-embed:
+      title: ":link: Connect to Your Twitter Account"
+      description: "Please go to [Twitter API Authorize](%{auth_link}), click on \"Authorize app\", then send the verification PIN code here within 60 seconds"
+    timeout-embed:
+      title: ":warning: Connect Failed"
+      description: "Authorization timeout, please try again"
+    success-embed:
+      title: ":white_check_mark: Account Connected"
+      description: "You can disconnect to your account by using `/disconnect` at any time"
+    unauthorized-embed:
+      title: ":warning: Connect Failed"
+      description: "Unauthorized PIN code"
+
+  disconnect:
+    success-embed:
+      title: ":white_check_mark: Account Disconnected"
+      description: "All messages containing user access keys have been overwritten\n\nYou can revoke the permissions of this application in Twitter's [user settings](https://twitter.com/settings/connected_apps)"
+
+  invite:
+    info-embed:
+      description: "Click [here](https://discord.com/oauth2/authorize?client_id=%{client_id}&permissions=412317248576&scope=bot%20applications.commands) to invite <@!%{client_id}> to your server!"
+
+core:
+  oauth:
+    get-client:
+      notify-embed:
+        title: ":information_source: You Haven't Connected Your Twitter Account Yet"
+        description: "Use `/connect` to connect to your Twitter account, then you can interact with Twitter in Discord"

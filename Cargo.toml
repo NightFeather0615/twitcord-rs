@@ -15,8 +15,7 @@ features = [
   "http",
   "model",
   "utils",
-  "rustls_backend",
-  "absolute_ratelimits"
+  "rustls_backend"
 ]
 
 [dependencies.tokio]
@@ -66,3 +65,6 @@ version = "1.8.3"
 
 [dependencies.anyhow]
 version = "1.0.71"
+
+[dependencies.rust-i18n]
+version = "1.2.1"
