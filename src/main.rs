@@ -37,7 +37,7 @@ use anyhow::{Result, anyhow};
 
 use crate::core::{
   oauth::TwitterClient,
-  utils::{get_tweet_id, match_locale},
+  utils::{get_first_tweet_id, match_locale},
   cache::{AccessTokenCache, MAX_AGE}
 };
 
@@ -68,7 +68,7 @@ impl EventHandler for Handler {
       Err(why) => { info!("{:?}", why); return; }
     };
     
-    let tweet_id: Arc<str> = get_tweet_id(&message.content);
+    let tweet_id: Arc<str> = get_first_tweet_id(&message.content);
 
     if tweet_id.len() == message.content.len() {
       return;
@@ -113,7 +113,7 @@ impl EventHandler for Handler {
       Err(why) => { info!("{:?}", why); return; }
     };
     
-    let tweet_id: Arc<str> = get_tweet_id(&message.content);
+    let tweet_id: Arc<str> = get_first_tweet_id(&message.content);
 
     if tweet_id.len() == message.content.len() {
       return;
@@ -144,7 +144,7 @@ impl EventHandler for Handler {
     context: Context,
     message: Message
   ) {
-    let tweet_id: Arc<str> = get_tweet_id(&message.content);
+    let tweet_id: Arc<str> = get_first_tweet_id(&message.content);
 
     if tweet_id.len() == message.content.len() {
       return;
@@ -246,14 +246,12 @@ async fn main() {
     | GatewayIntents::GUILD_MESSAGES
     | GatewayIntents::MESSAGE_CONTENT;
 
-  AccessTokenCache::init();
-
   task::spawn(
     async {
       loop {
         sleep(Duration::from_secs(MAX_AGE / 2)).await;
         info!("Clean up access token cache.");
-        AccessTokenCache::init().clean_up().await;
+        AccessTokenCache::get().clean_up().await;
       }
     }
   );

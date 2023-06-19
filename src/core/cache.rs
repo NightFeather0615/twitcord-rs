@@ -46,27 +46,27 @@ pub struct AccessTokenCache {
 unsafe impl Send for AccessTokenCache {}
 
 impl AccessTokenCache {
-  pub fn new(max_age: u64, max_item: usize) -> AccessTokenCache {
+  pub(self) fn new(max_age: u64, max_item: usize) -> AccessTokenCache {
     AccessTokenCache {
       data: RwLock::new(HashMap::with_capacity(max_item)),
       max_age
     }
   }
 
-  pub fn init() -> &'static AccessTokenCache {
+  pub fn get() -> &'static AccessTokenCache {
     ACCESS_TOKEN_CACHE.get_or_init(
       || AccessTokenCache::new(MAX_AGE, MAX_ITEM)
     )
   }
 
-  pub async fn get(self: &Self, user_id: u64) -> Option<CacheData> {
+  pub async fn request(self: &Self, user_id: u64) -> Option<CacheData> {
     match self.data.read().await.get(&user_id) {
       Some(cache_data) => Some(cache_data.clone()),
       None => None
     }
   }
 
-  pub async fn insert(
+  pub async fn add(
     self: &Self,
     user_id: u64,
     access_token: Arc<str>,

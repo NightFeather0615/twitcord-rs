@@ -51,6 +51,7 @@ type HttpsConnector = rustls_HttpsConnector<HttpConnector>;
 
 
 static LOOKUP_USER_ID_REGEX: OnceLock<Regex> = OnceLock::new();
+static HTTP_CLIENT: OnceLock<Client<HttpsConnector, Body>> = OnceLock::new();
 
 pub static TWITTER_CONSUMER_KEY: OnceLock<Arc<str>> = OnceLock::new();
 pub static TWITTER_CONSUMER_SECRET: OnceLock<Arc<str>> = OnceLock::new();
@@ -101,9 +102,9 @@ impl TwitterClient {
   }
 
   pub async fn get_client(context: &Context, user: User) -> Result<TwitterClient> {
-    let cache: &AccessTokenCache = AccessTokenCache::init();
+    let cache: &AccessTokenCache = AccessTokenCache::get();
 
-    if let Some(cache_data) = cache.get(
+    if let Some(cache_data) = cache.request(
       *user.id.as_u64()
     ).await {
       return Ok(
@@ -160,7 +161,7 @@ impl TwitterClient {
       }
     ).collect_tuple::<(String, String)>() {
       Some(access_token_pair) => {
-        cache.insert(
+        cache.add(
           *user.id.as_u64(),
           access_token_pair.0.clone().into(),
           access_token_pair.1.clone().into()
@@ -334,7 +335,8 @@ impl TwitterClient {
           ).expect("Regex init failed.")
         )
         .replace(
-          &self.oauth.request(&url, params).await?, "$id"
+          &self.oauth.request(&url, params).await?,
+          "$id"
         )
         .into()
     )
@@ -397,7 +399,6 @@ struct OAuthSession {
   client_secret: Arc<str>,
   resource_owner_key: Option<Arc<str>>,
   resource_owner_secret: Option<Arc<str>>,
-  http_client: Client<HttpsConnector, Body>,
   hmac_sha1: HmacSha1,
   rng: StdRng
 }
@@ -411,19 +412,12 @@ impl OAuthSession {
     resource_owner_key: Option<Arc<str>>,
     resource_owner_secret: Option<Arc<str>>
   ) -> Result<OAuthSession> {
-    let https_connector: HttpsConnector = HttpsConnectorBuilder::new()
-      .with_native_roots()
-      .https_only()
-      .enable_http1()
-      .build();
-
     Ok(
       OAuthSession {
         client_key,
         client_secret: client_secret.clone(),
         resource_owner_key,
         resource_owner_secret: resource_owner_secret.clone(),
-        http_client: Client::builder().build(https_connector),
         hmac_sha1: HmacSha1::new_from_slice(
           format!(
             "{consumer_secret}&{token_secret}",
@@ -436,6 +430,20 @@ impl OAuthSession {
         rng: StdRng::from_entropy()
       }
     )
+  }
+
+  fn get_http_client(self: &Self) -> Client<HttpsConnector, Body> {
+    HTTP_CLIENT.get_or_init(
+      || {
+        Client::builder().build(
+          HttpsConnectorBuilder::new()
+          .with_native_roots()
+          .https_only()
+          .enable_http1()
+          .build()
+        )
+      }
+    ).clone()
   }
 
   pub(self) fn update_hash_key(self: &mut Self) -> Result<()> {
@@ -602,7 +610,7 @@ impl OAuthSession {
 
     debug!("Sending request: {:?}", url);
 
-    let response: Response<Body> = self.http_client.request(
+    let response: Response<Body> = self.get_http_client().request(
       self.build_request(url, Some(params))?
     ).await?;
 
