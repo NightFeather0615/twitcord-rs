@@ -1,5 +1,7 @@
 command:
-  check-dm: "請檢查私人訊息，並確保你已於使用者設定開啟「允許來自伺服器成員的私人訊息」\n`使用者設定 -> 隱私 & 安全 -> 允許來自伺服器成員的私人訊息`"
+  check-dm-embed:
+    title: ":speech_balloon: 請確認私人訊息以繼續"
+    description : "沒有收到私人訊息嗎？\n確保你已開啟 `使用者設定 -> 隱私 & 安全 -> 允許來自伺服器成員的私人訊息`"
 
   connect:
     auth-embed:

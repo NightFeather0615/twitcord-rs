@@ -1,5 +1,7 @@
 command:
-  check-dm: "Please check your DM and make sure you have \"Allow direct messages from server members\"turned on in User Settings\n`User Settings -> Privacy & Safety -> Allow direct messages from server members`"
+  check-dm-embed:
+    title: ":speech_balloon: Please check your DM to continue"
+    description : "Not receiving DM?\nMake you turn on `User Settings -> Privacy & Safety -> Allow direct messages from server members`"
 
   connect:
     auth-embed:

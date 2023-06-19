@@ -14,9 +14,9 @@ use serenity::{
     GetMessages,
     EditMessage,
     CreateInteractionResponse,
-    CreateInteractionResponseData
+    CreateInteractionResponseData, CreateEmbed
   },
-  Error,
+  Error, utils::Color,
 };
 use anyhow::Result;
 
@@ -69,11 +69,23 @@ pub async fn check_dm(
             |message: &mut CreateInteractionResponseData<'_>| {
               message
                 .ephemeral(true)
-                .content(
-                  t!(
-                    "command.check-dm",
-                    locale = &interaction.locale
-                  )
+                .embed(
+                  |embed: &mut CreateEmbed| {
+                    embed
+                      .color(Color::new(EMBED_ERROR_COLOR))
+                      .title(
+                        t!(
+                          "command.check-dm-embed.title",
+                          locale = &interaction.locale
+                        )
+                      )
+                      .description(
+                        t!(
+                          "command.check-dm-embed.description",
+                          locale = &interaction.locale
+                        )
+                      )
+                  }
                 )
             }
           )
