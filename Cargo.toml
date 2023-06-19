@@ -8,7 +8,7 @@ edition = "2021"
 strip = "symbols"
 lto = "fat"
 codegen-units = 1
-opt-level = 3
+opt-level = "s"
 
 
 [dependencies.serenity]

@@ -1,0 +1,32 @@
+command:
+  check-dm: ""请检查私聊，并确保你已于用户设置开启「允许服务器成员直接向您发起私聊」\n`用户设置 -> 隐私与安全 -> 允许服务器成员直接向您发起私聊`"
+
+  connect:
+    auth-embed:
+      title: ":link: 连接你的 Twitter 账号"
+      description: "请前往 [Twitter API 验证](%{auth_link})，点击「Authorize 并于一分钟内将验证码发送至此"
+    timeout-embed:
+      title: ":warning: 账号连接失败"
+      description: "验证超时，请再试一次"
+    success-embed:
+      title: ":white_check_mark: 账号连接成功"
+      description: "你随时可以使用 `/disconnect` 中断与 Twitter 账号的连接"
+    unauthorized-embed:
+      title: ":warning: 账号连接失败"
+      description: "验证码无效"
+
+  disconnect:
+    success-embed:
+      title: ":white_check_mark: 连结已中断"
+      description: "所有包含使用者密钥的信息已被覆写\n\你可以于 Twitter 的[用户设置](https://twitter.com/settings/connected_apps)撤销此应用程序的所有权限"
+
+  invite:
+    info-embed:
+      description: "点击[此处](https://discord.com/oauth2/authorize?client_id=%{client_id}&permissions=412317248576&scope=bot%20applications.commands)来邀请 <@!%{client_id}> 到你的服务器！"
+
+core:
+  oauth:
+    get-client:
+      notify-embed:
+        title: ":information_source: 你尚未与 Twitter 账号连接"
+        description: "使用 `/connect` 来与你的 Twitter 账号连接，享受由 Twitcord 提供的便捷功能"

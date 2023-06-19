@@ -1,5 +1,5 @@
 command:
-  check-dm: "Please check your DM, and make sure you turned allow direct messages on in:\n`Settings -> Privacy & Safety -> Allow direct messages from server members`"
+  check-dm: "Please check your DM and make sure you have \"Allow direct messages from server members\"turned on in User Settings\n`User Settings -> Privacy & Safety -> Allow direct messages from server members`"
 
   connect:
     auth-embed:

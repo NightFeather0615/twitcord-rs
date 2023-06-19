@@ -1,0 +1,32 @@
+command:
+  check-dm: "請檢查私人訊息，並確保你已於使用者設定開啟「允許來自伺服器成員的私人訊息」\n`使用者設定 -> 隱私 & 安全 -> 允許來自伺服器成員的私人訊息`"
+
+  connect:
+    auth-embed:
+      title: ":link: 連接你的 Twitter 帳號"
+      description: "請前往 [Twitter API 驗證](%{auth_link})，點擊「Authorize app」並於一分鐘內將驗證碼發送至此"
+    timeout-embed:
+      title: ":warning: 帳號連接失敗"
+      description: "驗證超時，請再試一次"
+    success-embed:
+      title: ":white_check_mark: 帳號連接成功"
+      description: "你隨時可以使用 `/disconnect` 中斷與 Twitter 帳號的連接"
+    unauthorized-embed:
+      title: ":warning: 帳號連接失敗"
+      description: "驗證碼無效"
+
+  disconnect:
+    success-embed:
+      title: ":white_check_mark: 連結已中斷"
+      description: "所有包含使用者金鑰的訊息已被覆寫\n\n你可以於 Twitter 的[使用者設定](https://twitter.com/settings/connected_apps)撤銷此應用程式的所有權限"
+
+  invite:
+    info-embed:
+      description: "點擊[此處](https://discord.com/oauth2/authorize?client_id=%{client_id}&permissions=412317248576&scope=bot%20applications.commands)來邀請 <@!%{client_id}> 到你的伺服器！"
+
+core:
+  oauth:
+    get-client:
+      notify-embed:
+        title: ":information_source: 你尚未與 Twitter 帳號連接"
+        description: "使用 `/connect` 來與你的 Twitter 帳號連接，享受由 Twitcord 提供的便捷功能"

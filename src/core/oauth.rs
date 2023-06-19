@@ -101,6 +101,40 @@ impl TwitterClient {
     )
   }
 
+  async fn send_notify(context: &Context, user: &User) -> Result<()> {
+    user.direct_message(
+      &context.http,
+      |message: &mut CreateMessage<'_>| {
+        message
+          .embed(
+            |embed: &mut CreateEmbed| {
+              embed
+                .color(Color::new(EMBED_ERROR_COLOR))
+                .title(
+                  t!(
+                    "core.oauth.get-client.notify-embed.title",
+                    locale = "en"
+                  )
+                )
+                .description(
+                  t!(
+                    "core.oauth.get-client.notify-embed.description",
+                    locale = "en"
+                  )
+                )
+                .footer(
+                  |footer: &mut CreateEmbedFooter| {
+                    footer.text("ERR_ACCESS_TOKEN_NOT_FOUND")
+                  }
+                )
+            }
+          )
+      }
+    ).await?;
+
+    Ok(())
+  }
+
   pub async fn get_client(context: &Context, user: User) -> Result<TwitterClient> {
     let cache: &AccessTokenCache = AccessTokenCache::get();
 
@@ -119,40 +153,19 @@ impl TwitterClient {
       &context.http
     ).await?.pins(&context.http).await?.first() {
       Some(pinned_message) => pinned_message.to_owned(),
-      None => bail!("Pinned message not found.")
+      None => {
+        match TwitterClient::send_notify(context, &user).await {
+          Ok(()) => bail!("Pinned message not found."),
+          Err(_) => bail!("Send notify failed.")
+        }
+      }
     };
 
     if !pinned_message.content.contains("Twitter User Access Token") {
-      user.direct_message(
-        &context.http,
-        |message: &mut CreateMessage<'_>| {
-          message
-            .embed(
-              |embed: &mut CreateEmbed| {
-                embed
-                  .color(Color::new(EMBED_ERROR_COLOR))
-                  .title(
-                    t!(
-                      "core.oauth.get-client.notify-embed.title",
-                      locale = "en"
-                    )
-                  )
-                  .description(
-                    t!(
-                      "core.oauth.get-client.notify-embed.description",
-                      locale = "en"
-                    )
-                  )
-                  .footer(
-                    |footer: &mut CreateEmbedFooter| {
-                      footer.text("ERR_ACCESS_TOKEN_NOT_FOUND")
-                    }
-                  )
-              }
-            )
-        }
-      ).await?;
-      bail!("Access Token not found.");
+      match TwitterClient::send_notify(context, &user).await {
+        Ok(()) => bail!("Access Token not found."),
+        Err(_) => bail!("Send notify failed.")
+      }
     }
 
     match pinned_message.content.split("\n").skip(1).map(
