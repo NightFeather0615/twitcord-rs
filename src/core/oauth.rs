@@ -156,9 +156,7 @@ impl TwitterClient {
     }
 
     match pinned_message.content.split("\n").skip(1).map(
-      |s: &str| {
-        s.replace("`", "").replace("||", "")
-      }
+      |s: &str| s.replace("`", "").replace("||", "")
     ).collect_tuple::<(String, String)>() {
       Some(access_token_pair) => {
         cache.add(
@@ -330,9 +328,11 @@ impl TwitterClient {
     Ok(
       LOOKUP_USER_ID_REGEX
         .get_or_init(
-          || Regex::new(
-            r#".*"user":\{"id":(?P<id>[0-9].*),"id_str":"[0-9].*"\}.*"#
-          ).expect("Regex init failed.")
+          || {
+            Regex::new(
+              r#".*"user":\{"id":(?P<id>[0-9].*),"id_str":"[0-9].*"\}.*"#
+            ).expect("Regex init failed.")
+          }
         )
         .replace(
           &self.oauth.request(&url, params).await?,
@@ -469,12 +469,13 @@ impl OAuthSession {
 
     let normalized_params: Arc<str> = params.iter()
       .map(
-        |(k, v)|
+        |(k, v)| {
           format!(
             "{key}={value}",
             key = urlencoding::encode(k),
             value = urlencoding::encode(v)
           ).into()
+        }
       )
       .collect::<Vec<Arc<str>>>()
       .join("&")
@@ -576,12 +577,13 @@ impl OAuthSession {
           "OAuth {params}",
           params = params.into_iter()
             .map(
-              |(k, v)| 
+              |(k, v)| {
                 format!(
                   r#"{key}="{value}""#,
                   key = urlencoding::encode(k),
                   value = urlencoding::encode(&v)
                 ).into()
+              }
             )
             .collect::<Vec<Arc<str>>>()
             .join(", ")
@@ -677,7 +679,8 @@ impl OAuthSession {
     ).into();
 
     let token: HashMap<Arc<str>, Arc<str>> = self.fetch_token(
-      &url, BTreeMap::new()
+      &url,
+      BTreeMap::new()
     ).await?;
 
     self.resource_owner_key = token.get("oauth_token").cloned();

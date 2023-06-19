@@ -140,9 +140,11 @@ async fn connect_account(
       |message: &Arc<Message>| {
         AUTH_PIN_REGEX
           .get_or_init(
-            || Regex::new(
-              "[0-9]{7}"
-            ).expect("Regex init failed.")
+            || {
+              Regex::new(
+                "[0-9]{7}"
+              ).expect("Regex init failed.")
+            }
           )
           .is_match(&message.content)
       }

@@ -29,9 +29,11 @@ pub static EMBED_ERROR_COLOR: u32 = 0xeca42c;
 
 pub fn get_first_tweet_id(url: &str) -> Arc<str> {
   TWITTER_POST_ID_REGEX.get_or_init(
-    || Regex::new(
-      r#"(?:https|http)://(?:www\.)?(?:twitter|fxtwitter|vxtwitter)\.com/[A-Za-z0-9_]{1,15}/status/(?P<tweet_id>[0-9]*)"#
-    ).expect("Regex init failed.")
+    || {
+      Regex::new(
+        r#"(?:https|http)://(?:www\.)?(?:twitter|fxtwitter|vxtwitter)\.com/[A-Za-z0-9_]{1,15}/status/(?P<tweet_id>[0-9]*)"#
+      ).expect("Regex init failed.")
+    }
   )
   .replace(url, "$tweet_id")
   .into()
