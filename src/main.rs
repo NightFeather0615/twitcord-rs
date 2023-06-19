@@ -2,7 +2,7 @@ mod command;
 mod core;
 
 
-use std::{env, sync::Arc, time::Duration};
+use std::{env, time::Duration};
 
 use dotenv::dotenv;
 use rust_i18n::i18n;
@@ -22,8 +22,7 @@ use serenity::{
       Message,
       ReactionType,
       Activity
-    },
-    user::User
+    }
   },
   Client,
   builder::{
@@ -32,12 +31,11 @@ use serenity::{
   }
 };
 use tokio::{task, time::sleep};
-use tracing::{Level, log::info};
+use tracing::{Level, log::{info, error}};
 use anyhow::{Result, anyhow};
 
 use crate::core::{
-  oauth::TwitterClient,
-  utils::{get_first_tweet_id, match_locale},
+  utils::{get_first_tweet_id, match_locale, process_reaction},
   cache::{AccessTokenCache, MAX_AGE}
 };
 
@@ -54,29 +52,9 @@ impl EventHandler for Handler {
     context: Context,
     reaction: Reaction
   ) {
-    let user: User = match reaction.user(&context.http).await {
-      Ok(user) => user,
-      Err(why) => { info!("{:?}", why); return; }
-    };
-
-    if user.bot {
-      return;
-    }
-
-    let message: Message = match reaction.message(&context.http).await {
-      Ok(message) => message,
-      Err(why) => { info!("{:?}", why); return; }
-    };
-    
-    let tweet_id: Arc<str> = get_first_tweet_id(&message.content);
-
-    if tweet_id.len() == message.content.len() {
-      return;
-    }
-
-    let mut twitter_client: TwitterClient = match TwitterClient::get_client(&context, user).await {
-      Ok(twitter_client) => twitter_client,
-      Err(why) => { info!("{:?}", why); return; }
+    let (mut twitter_client, tweet_id) = match process_reaction(&context, &reaction).await {
+      Some((twitter_client, tweet_id)) => (twitter_client, tweet_id),
+      None => return
     };
     
     let result: Result<()> = match reaction.emoji.as_data().as_str() {
@@ -84,13 +62,27 @@ impl EventHandler for Handler {
       "🔁" => twitter_client.retweet(&tweet_id).await,
       "📡" => match twitter_client.get_author_id(&tweet_id).await {
         Ok(author_id) => twitter_client.follow(&author_id).await,
-        Err(why) => { info!("{:?}", why); return; }
+        Err(why) => { error!("{:?}", why); return; }
       },
-      _ => Err(anyhow!("Unknown action."))
+      _ => return
     };
 
+    info!(
+      "Invoke action `{action}` | Tweet: {tweet_id} | User: {user_id} | Guild: {guild_id}",
+      action = reaction.emoji.as_data().as_str(),
+      tweet_id = tweet_id,
+      user_id = match reaction.user_id {
+        Some(user_id) => *user_id.as_u64(),
+        None => 0
+      },
+      guild_id = match reaction.guild_id {
+        Some(guild_id) => *guild_id.as_u64(),
+        None => 0
+      },
+    );
+
     if let Err(why) = result {
-      info!("Event reaction_remove error: {}", why);
+      error!("ReactionAdd error: {}", why);
     }
   }
 
@@ -99,29 +91,9 @@ impl EventHandler for Handler {
     context: Context,
     reaction: Reaction
   ) {
-    let user: User = match reaction.user(&context.http).await {
-      Ok(user) => user,
-      Err(why) => { info!("{:?}", why); return; }
-    };
-
-    if user.bot {
-      return;
-    }
-
-    let message: Message = match reaction.message(&context.http).await {
-      Ok(message) => message,
-      Err(why) => { info!("{:?}", why); return; }
-    };
-    
-    let tweet_id: Arc<str> = get_first_tweet_id(&message.content);
-
-    if tweet_id.len() == message.content.len() {
-      return;
-    }
-
-    let mut twitter_client: TwitterClient = match TwitterClient::get_client(&context, user).await {
-      Ok(twitter_client) => twitter_client,
-      Err(why) => { info!("{:?}", why); return; }
+    let (mut twitter_client, tweet_id) = match process_reaction(&context, &reaction).await {
+      Some((twitter_client, tweet_id)) => (twitter_client, tweet_id),
+      None => return
     };
     
     let result: Result<()> = match reaction.emoji.as_data().as_str() {
@@ -129,13 +101,27 @@ impl EventHandler for Handler {
       "🔁" => twitter_client.unretweet(&tweet_id).await,
       "📡" => match twitter_client.get_author_id(&tweet_id).await {
         Ok(author_id) => twitter_client.unfollow(&author_id).await,
-        Err(why) => { info!("{:?}", why); return; }
+        Err(why) => { error!("{:?}", why); return; }
       },
-      _ => Err(anyhow!("Unknown action."))
+      _ => return
     };
 
+    info!(
+      "Revoke action `{action}` | Tweet: {tweet_id} | User: {user_id} | Guild: {guild_id}",
+      action = reaction.emoji.as_data().as_str(),
+      tweet_id = tweet_id,
+      user_id = match reaction.user_id {
+        Some(user_id) => *user_id.as_u64(),
+        None => 0
+      },
+      guild_id = match reaction.guild_id {
+        Some(guild_id) => *guild_id.as_u64(),
+        None => 0
+      },
+    );
+
     if let Err(why) = result {
-      info!("Event reaction_remove error: {}", why);
+      error!("ReactionRemove error: {}", why);
     }
   }
 
@@ -144,20 +130,38 @@ impl EventHandler for Handler {
     context: Context,
     message: Message
   ) {
-    let tweet_id: Arc<str> = get_first_tweet_id(&message.content);
-
-    if tweet_id.len() == message.content.len() {
-      return;
+    match message.channel(&context.http).await {
+      Ok(channel) => {
+        if channel.private().is_some() {
+          return;
+        }
+      },
+      Err(why) => { error!("Fetch channel error: {:?}", why); return; }
     }
 
-    for emoji in ["❤️", "🔁", "📡"] {
-      match message.react(
-        &context.http,
-        ReactionType::Unicode(emoji.to_string())
-      ).await {
-        Ok(_) => (),
-        Err(why) => { info!("{:?}", why); return; }
-      }
+    match get_first_tweet_id(&message.content) {
+      Some(tweet_id) => {
+        for emoji in ["❤️", "🔁", "📡"] {
+          match message.react(
+            &context.http,
+            ReactionType::Unicode(emoji.to_string())
+          ).await {
+            Ok(_) => (),
+            Err(why) => { error!("Apply reaction error: {:?}", why); return; }
+          }
+        }
+        
+        info!(
+          "Applied reaction | Tweet: {tweet_id} | User: {user_id} | Guild: {guild_id}",
+          tweet_id = tweet_id,
+          user_id = message.author.id.as_u64(),
+          guild_id = match message.guild_id {
+            Some(guild_id) => *guild_id.as_u64(),
+            None => 0
+          },
+        )
+      },
+      None => ()
     }
   }
 
@@ -166,29 +170,35 @@ impl EventHandler for Handler {
     context: Context,
     interaction: Interaction
   ) {
-    if let Interaction::ApplicationCommand(
-      mut command
-    ) = interaction {
-      info!("Received command interaction: {:#?}", command);
+    if let Interaction::ApplicationCommand(mut interaction) = interaction {
+      info!(
+        "Received ApplicationCommand `{name}` | User: {user_id} | Guild: {guild_id}",
+        name = interaction.data.name,
+        guild_id = match interaction.guild_id {
+          Some(guild_id) => *guild_id.as_u64(),
+          None => 0
+        },
+        user_id = interaction.user.id.as_u64()
+      );
 
-      command.locale = match_locale(&command.locale);
+      interaction.locale = match_locale(&interaction.locale);
 
-      let result: Result<()> = match command.data.name.as_str() {
-        "connect" => command::connect::execute(&context, &command).await,
-        "disconnect" => command::disconnect::execute(&context, &command).await,
-        "support" => command::support::execute(&context, &command).await,
-        "invite" => command::invite::execute(&context, &command).await,
+      let result: Result<()> = match interaction.data.name.as_str() {
+        "connect" => command::connect::execute(&context, &interaction).await,
+        "disconnect" => command::disconnect::execute(&context, &interaction).await,
+        "support" => command::support::execute(&context, &interaction).await,
+        "invite" => command::invite::execute(&context, &interaction).await,
         _ => Err(anyhow!("Interaction not found."))
       };
 
       if let Err(why) = result {
-        info!("Command interaction error: {}", why);
+        error!("ApplicationCommand error: {:?}", why);
       }
     }
   }
 
   async fn ready(self: &Self, context: Context, ready: Ready) {
-    info!("Logged in as {}#{}", ready.user.name, ready.user.discriminator);
+    info!("Logged in as `{}#{}`", ready.user.name, ready.user.discriminator);
 
     let commands: Vec<Command> = Command::set_global_application_commands(
       &context.http,
@@ -218,7 +228,7 @@ impl EventHandler for Handler {
     ).await.expect("Register commands failed.");
 
     for command in commands {
-      info!("Registered command {}", command.name);
+      info!("Registered command `{}`", command.name);
     }
 
     context.online().await;
@@ -250,7 +260,6 @@ async fn main() {
     async {
       loop {
         sleep(Duration::from_secs(MAX_AGE / 2)).await;
-        info!("Clean up access token cache.");
         AccessTokenCache::get().clean_up().await;
       }
     }
@@ -262,6 +271,6 @@ async fn main() {
     .expect("Error creating client");
 
   if let Err(why) = client.start().await {
-    info!("Client error: {:?}", why);
+    error!("Client error: {:?}", why);
   }
 }

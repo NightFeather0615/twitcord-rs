@@ -5,6 +5,7 @@ use std::{
 };
 
 use tokio::sync::{RwLock, RwLockWriteGuard};
+use tracing::log::info;
 
 
 pub static MAX_AGE: u64 = 86400;
@@ -88,6 +89,9 @@ impl AccessTokenCache {
       .as_secs();
 
     let mut cache: RwLockWriteGuard<'_, HashMap<u64, CacheData>> = self.data.write().await;
+    let current_size: usize = cache.len();
+
+    info!("Start cleaning cache...");
 
     cache.retain(
       |_, cache_data: &mut CacheData| {
@@ -95,5 +99,12 @@ impl AccessTokenCache {
       }
     );
     cache.shrink_to(MAX_ITEM);
+
+    info!(
+      "Cache cleaned | Size: {size} | Capacity: {capacity} | Released: {released}",
+      size = cache.len(),
+      capacity = cache.capacity(),
+      released = current_size - cache.len()
+    );
   }
 }

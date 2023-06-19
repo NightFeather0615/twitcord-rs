@@ -3,22 +3,31 @@ use std::sync::{OnceLock, Arc};
 use regex::Regex;
 use rust_i18n::t;
 use serenity::{
-  model::prelude::{
-    PrivateChannel, interaction::{
-      application_command::ApplicationCommandInteraction,
-      InteractionResponseType
-    }
+  model::{
+    prelude::{
+      PrivateChannel, interaction::{
+        application_command::ApplicationCommandInteraction,
+        InteractionResponseType
+      },
+      Message,
+      Reaction
+    },
+    user::User
   },
   prelude::Context,
   builder::{
     GetMessages,
     EditMessage,
     CreateInteractionResponse,
-    CreateInteractionResponseData, CreateEmbed
+    CreateInteractionResponseData,
+    CreateEmbed
   },
   Error, utils::Color,
 };
 use anyhow::Result;
+use tracing::log::error;
+
+use super::oauth::TwitterClient;
 
 
 static TWITTER_POST_ID_REGEX: OnceLock<Regex> = OnceLock::new();
@@ -27,16 +36,53 @@ pub static EMBED_INFO_COLOR: u32 = 0x3983f2;
 pub static EMBED_ERROR_COLOR: u32 = 0xeca42c;
 
 
-pub fn get_first_tweet_id(url: &str) -> Arc<str> {
-  TWITTER_POST_ID_REGEX.get_or_init(
+pub async fn process_reaction(
+  context: &Context,
+  reaction: &Reaction
+) -> Option<(TwitterClient, Arc<str>)> {
+  let user: User = match reaction.user(&context.http).await {
+    Ok(user) => user,
+    Err(why) => { error!("{:?}", why); return None; }
+  };
+
+  if user.bot {
+    return None;
+  }
+
+  let message: Message = match reaction.message(&context.http).await {
+    Ok(message) => message,
+    Err(why) => { error!("{:?}", why); return None; }
+  };
+  
+  let tweet_id: Arc<str> = match get_first_tweet_id(&message.content) {
+    Some(tweet_id) => tweet_id,
+    None => return None
+  };
+
+  let twitter_client: TwitterClient = match TwitterClient::get_client(&context, user).await {
+    Ok(twitter_client) => twitter_client,
+    Err(why) => { error!("{:?}", why); return None; }
+  };
+
+  Some((twitter_client, tweet_id))
+}
+
+pub fn get_first_tweet_id(message: &str) -> Option<Arc<str>> {
+  let tweet_id: Arc<str> = TWITTER_POST_ID_REGEX.get_or_init(
     || {
       Regex::new(
         r#"(?:https|http)://(?:www\.)?(?:twitter|fxtwitter|vxtwitter)\.com/[A-Za-z0-9_]{1,15}/status/(?P<tweet_id>[0-9]*)"#
       ).expect("Regex init failed.")
     }
   )
-  .replace(url, "$tweet_id")
-  .into()
+    .replace(message, "$tweet_id")
+    .into();
+
+  if tweet_id.len() == message.len() {
+    return None;
+  }
+
+  Some(tweet_id)
 }
 
 pub fn match_locale(discord_locale: &str) -> String {
