@@ -171,16 +171,16 @@ impl TwitterClient {
     match pinned_message.content.split("\n").skip(1).map(
       |s: &str| s.replace("`", "").replace("||", "")
     ).collect_tuple::<(String, String)>() {
-      Some(access_token_pair) => {
+      Some((access_token, access_token_secret)) => {
         cache.add(
           *user.id.as_u64(),
-          access_token_pair.0.clone().into(),
-          access_token_pair.1.clone().into()
+          access_token.as_str(),
+          access_token_secret.as_str()
         ).await;
   
         TwitterClient::new(
-          Some(access_token_pair.0.into()),
-          Some(access_token_pair.1.into())
+          Some(access_token.into()),
+          Some(access_token_secret.into())
         )
       },
       None => bail!("Token collect failed.")

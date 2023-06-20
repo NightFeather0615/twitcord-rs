@@ -4,7 +4,7 @@ RUN update-ca-certificates
 
 WORKDIR /twitcord-rs
 
-COPY ./ .
+COPY . .
 
 RUN cargo build --release
 
@@ -17,6 +17,6 @@ ENV DISCORD_BOT_TOKEN your_deploy_token
 ENV TWITTER_CONSUMER_KEY your_deploy_key
 ENV TWITTER_CONSUMER_SECRET your_deploy_secret
 
-COPY --from=builder /twitcord-rs/target/release/twitcord-rs ./
+COPY --from=builder /twitcord-rs/target/release/twitcord-rs .
 
 CMD ["/twitcord-rs/twitcord-rs"]

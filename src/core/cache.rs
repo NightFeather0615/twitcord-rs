@@ -70,16 +70,26 @@ impl AccessTokenCache {
   pub async fn add(
     self: &Self,
     user_id: u64,
-    access_token: Arc<str>,
-    access_token_secret: Arc<str>
+    access_token: &str,
+    access_token_secret: &str
   ) {
     self.data
       .write()
       .await
       .insert(
         user_id,
-        CacheData::new(access_token, access_token_secret)
+        CacheData::new(
+            access_token.into(),
+            access_token_secret.into()
+          )
       );
+  }
+
+  pub async fn purge(self: &Self, user_id: u64) {
+    self.data
+      .write()
+      .await
+      .remove(&user_id);
   }
 
   pub async fn clean_up(self: &Self) {

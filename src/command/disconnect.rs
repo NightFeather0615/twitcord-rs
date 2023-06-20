@@ -17,9 +17,13 @@ use serenity::{
 };
 use anyhow::Result;
 
-use crate::core::utils::{
-  EMBED_INFO_COLOR,
-  clean_up_dm, check_dm
+use crate::core::{
+  utils::{
+    EMBED_INFO_COLOR,
+    clean_up_dm,
+    check_dm
+  },
+  cache::AccessTokenCache
 };
 
 
@@ -82,6 +86,10 @@ async fn disconnect_account(
     .await?;
 
   clean_up_dm(context, &dm_channel).await?;
+
+  AccessTokenCache::get().purge(
+    *interaction.user.id.as_u64()
+  ).await;
 
   if is_dm {
     interaction.create_followup_message(

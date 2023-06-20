@@ -27,7 +27,8 @@ use crate::core::{
     EMBED_ERROR_COLOR,
     clean_up_dm,
     check_dm
-  }
+  },
+  cache::AccessTokenCache
 };
 
 
@@ -186,7 +187,13 @@ async fn connect_account(
     .get_access_token(&pin_code.unwrap().content)
     .await;
 
-  if let Ok(access_token_pair) = access_token_pair {
+  if let Ok((access_token, access_token_secret)) = access_token_pair {
+    AccessTokenCache::get().add(
+      *interaction.user.id.as_u64(),
+      access_token,
+      access_token_secret
+    ).await;
+    
     dm_channel.send_message(
       &context.http,
       |message: &mut CreateMessage<'_>| message.add_embed(
@@ -214,8 +221,8 @@ async fn connect_account(
       |message: &mut CreateMessage<'_>| message.content(
         format!(
           "Twitter User Access Token\n||`{access_token}`||\n||`{access_token_secret}`||",
-          access_token = access_token_pair.0,
-          access_token_secret = access_token_pair.1
+          access_token = access_token,
+          access_token_secret = access_token_secret
         )
       )
     ).await?.pin(&context.http).await?;

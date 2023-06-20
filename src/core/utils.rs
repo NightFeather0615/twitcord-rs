@@ -118,7 +118,7 @@ pub async fn check_dm(
                 .embed(
                   |embed: &mut CreateEmbed| {
                     embed
-                      .color(Color::new(EMBED_ERROR_COLOR))
+                      .color(Color::new(EMBED_INFO_COLOR))
                       .title(
                         t!(
                           "command.check-dm-embed.title",
