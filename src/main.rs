@@ -248,7 +248,7 @@ async fn main() {
   dotenv().ok();
 
   let token: String = env::var("DISCORD_BOT_TOKEN")
-    .expect("Expected a token in the environment");
+    .expect("DISCORD_BOT_TOKEN is not set.");
 
   let intents: GatewayIntents = GatewayIntents::DIRECT_MESSAGES
     | GatewayIntents::GUILD_MEMBERS

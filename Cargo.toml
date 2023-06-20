@@ -7,7 +7,7 @@ edition = "2021"
 [profile.release]
 strip = "symbols"
 lto = "fat"
-codegen-units = 1
+codegen-units = 4
 opt-level = "s"
 
 
