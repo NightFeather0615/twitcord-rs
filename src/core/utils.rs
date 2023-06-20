@@ -71,7 +71,7 @@ pub fn get_first_tweet_id(message: &str) -> Option<Arc<str>> {
   let tweet_id: Arc<str> = TWITTER_POST_ID_REGEX.get_or_init(
     || {
       Regex::new(
-        r#".*(?:https|http)://(?:www\.)?(?:twitter|fxtwitter|vxtwitter)\.com/[A-Za-z0-9_]{1,15}/status/(?P<tweet_id>[0-9]*).*"#
+        r#"(?ms).*(?:https|http)://(?:www\.)?(?:twitter|fxtwitter|vxtwitter)\.com/[A-Za-z0-9_]{1,15}/status/(?P<tweet_id>[0-9]*).*"#
       ).expect("Regex init failed.")
     }
   )

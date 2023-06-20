@@ -343,7 +343,7 @@ impl TwitterClient {
         .get_or_init(
           || {
             Regex::new(
-              r#".*"user":\{"id":(?P<id>[0-9].*),"id_str":"[0-9].*"\}.*"#
+              r#"(?ms).*"user":\{"id":(?P<id>[0-9].*),"id_str":"[0-9].*"\}.*"#
             ).expect("Regex init failed.")
           }
         )
