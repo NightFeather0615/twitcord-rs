@@ -52,6 +52,7 @@ type HttpsConnector = rustls_HttpsConnector<HttpConnector>;
 
 static LOOKUP_USER_ID_REGEX: OnceLock<Regex> = OnceLock::new();
 static HTTP_CLIENT: OnceLock<Client<HttpsConnector, Body>> = OnceLock::new();
+static RNG: OnceLock<StdRng> = OnceLock::new();
 
 pub static TWITTER_CONSUMER_KEY: OnceLock<Arc<str>> = OnceLock::new();
 pub static TWITTER_CONSUMER_SECRET: OnceLock<Arc<str>> = OnceLock::new();
@@ -412,8 +413,7 @@ struct OAuthSession {
   client_secret: Arc<str>,
   resource_owner_key: Option<Arc<str>>,
   resource_owner_secret: Option<Arc<str>>,
-  hmac_sha1: HmacSha1,
-  rng: StdRng
+  hmac_sha1: HmacSha1
 }
 
 unsafe impl Send for OAuthSession {}
@@ -440,7 +440,6 @@ impl OAuthSession {
             )
           ).as_bytes()
         )?,
-        rng: StdRng::from_entropy()
       }
     )
   }
@@ -522,6 +521,10 @@ impl OAuthSession {
     self: &mut Self,
     params: &mut BTreeMap<&str, Arc<str>>
   ) -> Result<()> {
+    let mut rng: StdRng = RNG.get_or_init(
+      || StdRng::from_entropy()
+    ).clone();
+
     params.insert(
       "oauth_consumer_key",
       self.client_key.clone()
@@ -529,7 +532,7 @@ impl OAuthSession {
     params.insert(
       "oauth_nonce",
       (
-        (u64::MAX as f32 * self.rng.gen::<f32>()) as u64
+        (u64::MAX as f32 * rng.gen::<f32>()) as u64
       ).to_string().into()
     );
     params.insert(
