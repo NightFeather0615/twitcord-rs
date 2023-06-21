@@ -2,6 +2,9 @@ name: Docker Image CI
 
 on:
   workflow_dispatch: 
+  
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -26,4 +29,5 @@ jobs:
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
+        tag_name: v$PROJECT_VERSION
         files: twitcord-v$PROJECT_VERSION.tar
