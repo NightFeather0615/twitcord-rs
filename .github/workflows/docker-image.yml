@@ -9,7 +9,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - uses: softprops/action-gh-release@v1
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
@@ -24,6 +23,7 @@ jobs:
       run: docker save twitcord:$PROJECT_VERSION -o twitcord-v$PROJECT_VERSION.tar
     
     - name: Release
+      uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: twitcord-v$PROJECT_VERSION.tar
