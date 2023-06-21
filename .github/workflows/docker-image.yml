@@ -16,13 +16,13 @@ jobs:
     - uses: actions/checkout@v3
         
     - name: Build the Docker image
-      run: docker buildx build . --file Dockerfile --tag twitcord-rs:${{ github.ref_name }}
+      run: docker buildx build . --tag twitcord-rs:${{ github.ref_name }}
     
     - name: Save Docker image
-      run: docker save twitcord-rs:$PROJECT_VERSION -o twitcord-rs_v${{ github.ref_name }}.tar
+      run: docker save twitcord-rs:${{ github.ref_name }} --output twitcord-rs_${{ github.ref_name }}.tar
     
     - name: Release
       uses: softprops/action-gh-release@v1
       if: github.ref_type == 'tag'
       with:
-        files: twitcord-rs_v${{ github.ref_name }}.tar
+        files: twitcord-rs_${{ github.ref_name }}.tar
