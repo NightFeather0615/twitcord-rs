@@ -1,0 +1,19 @@
+name: Docker Image CI
+
+on:
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        
+    - name: Get project version
+      run: echo "PROJECT_VERSION=$(cargo metadata --format-version=1 --no-deps | jq '.packages[0].version')" >> $GITHUB_ENV
+    - name: Build the Docker image
+      run: docker buildx build . --file Dockerfile --tag twitcord:$PROJECT_VERSION
