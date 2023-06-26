@@ -1,3 +1,4 @@
 /target
 *.env
 *.tar
+.DS_Store

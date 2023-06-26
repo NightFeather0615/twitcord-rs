@@ -13,16 +13,14 @@ use serenity::{
     Context,
     GatewayIntents
   },
-  model::{
-    prelude::{
-      interaction::Interaction,
-      Ready,
-      command::Command,
-      Reaction,
-      Message,
-      ReactionType,
-      Activity
-    }
+  model::prelude::{
+    interaction::Interaction,
+    Ready,
+    command::Command,
+    Reaction,
+    Message,
+    ReactionType,
+    Activity
   },
   Client,
   builder::{
@@ -56,7 +54,7 @@ impl EventHandler for Handler {
       Some((twitter_client, tweet_id)) => (twitter_client, tweet_id),
       None => return
     };
-    
+
     let result: Result<()> = match reaction.emoji.as_data().as_str() {
       "❤️" => twitter_client.like(&tweet_id).await,
       "🔁" => twitter_client.retweet(&tweet_id).await,
@@ -95,7 +93,7 @@ impl EventHandler for Handler {
       Some((twitter_client, tweet_id)) => (twitter_client, tweet_id),
       None => return
     };
-    
+
     let result: Result<()> = match reaction.emoji.as_data().as_str() {
       "❤️" => twitter_client.unlike(&tweet_id).await,
       "🔁" => twitter_client.unretweet(&tweet_id).await,
@@ -150,7 +148,7 @@ impl EventHandler for Handler {
             Err(why) => { error!("Apply reaction error: {:?}", why); return; }
           }
         }
-        
+
         info!(
           "Applied reaction | Tweet: {tweet_id} | User: {user_id} | Guild: {guild_id}",
           tweet_id = tweet_id,
@@ -244,7 +242,7 @@ async fn main() {
   tracing_subscriber::fmt()
     .with_max_level(Level::INFO)
     .init();
-  
+
   dotenv().ok();
 
   let token: String = env::var("DISCORD_BOT_TOKEN")
