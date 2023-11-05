@@ -1,5 +1,7 @@
 # Discontinued
-Sorry, I can't afford the high Twitter API fee (5000$ per month), most of Twitcord's features are no longer available, thanks to Elon musk killing a high school student's open source project, feel free to remove this app!
+Sorry, I can't afford the high Twitter API fee (5000$ per month), most of Twitcord's features are no longer available, thanks to Elon Musk killing a high school student's open source project, feel free to remove this app!
+
+Thank you for your support along the way.
 
 # Twitcord
 A simple bot that helps you interact with Twitter in Discord.  
